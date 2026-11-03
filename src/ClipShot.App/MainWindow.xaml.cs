@@ -40,7 +40,7 @@ public partial class MainWindow : Window
         if (!_hotkeyManager.TryRegister(_activeHotkeySettings, out var error))
             StatusText.Text = $"Shortcut registration failed: {error}";
         else
-            StatusText.Text = "Ready · Global shortcuts active";
+            StatusText.Text = error is null ? "Ready · Global shortcuts active" : error;
     }
 
     private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -248,7 +248,7 @@ public partial class MainWindow : Window
             candidate.Save();
             _hotkeySettings = candidate;
             _activeHotkeySettings = candidate.Copy();
-            StatusText.Text = "Keyboard shortcuts saved";
+            StatusText.Text = error is null ? "Keyboard shortcuts saved" : $"Shortcuts saved with warning: {error}";
         }
         catch (Exception ex)
         {
