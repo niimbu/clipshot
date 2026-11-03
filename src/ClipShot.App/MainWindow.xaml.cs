@@ -220,7 +220,7 @@ public partial class MainWindow : Window
         if (modifiers.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
         if (modifiers.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
         if (modifiers.HasFlag(ModifierKeys.Windows)) parts.Add("Win");
-        parts.Add(key == Key.Snapshot ? "Print Screen" : key.ToString());
+        parts.Add(key == Key.PrintScreen ? "Print Screen" : key.ToString());
         return string.Join(" + ", parts);
     }
 
