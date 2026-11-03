@@ -36,10 +36,12 @@ public partial class RegionSelectionWindow : Window
         _startPoint = e.GetPosition(SelectionCanvas);
         _isSelecting = true;
         SelectionRect.Visibility = Visibility.Visible;
+        DimOverlay.Visibility = Visibility.Visible;
         Canvas.SetLeft(SelectionRect, _startPoint.X);
         Canvas.SetTop(SelectionRect, _startPoint.Y);
         SelectionRect.Width = 0;
         SelectionRect.Height = 0;
+        UpdateDimOverlay(_startPoint, _startPoint);
         SelectionCanvas.CaptureMouse();
     }
 
@@ -49,12 +51,7 @@ public partial class RegionSelectionWindow : Window
             return;
 
         var current = e.GetPosition(SelectionCanvas);
-        var left = Math.Min(_startPoint.X, current.X);
-        var top = Math.Min(_startPoint.Y, current.Y);
-        Canvas.SetLeft(SelectionRect, left);
-        Canvas.SetTop(SelectionRect, top);
-        SelectionRect.Width = Math.Abs(current.X - _startPoint.X);
-        SelectionRect.Height = Math.Abs(current.Y - _startPoint.Y);
+        UpdateSelectionVisuals(current);
     }
 
     private void SelectionCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -66,6 +63,8 @@ public partial class RegionSelectionWindow : Window
         SelectionCanvas.ReleaseMouseCapture();
 
         var current = e.GetPosition(SelectionCanvas);
+        UpdateSelectionVisuals(current);
+
         var left = Math.Min(_startPoint.X, current.X);
         var top = Math.Min(_startPoint.Y, current.Y);
         var width = Math.Abs(current.X - _startPoint.X);
@@ -74,6 +73,7 @@ public partial class RegionSelectionWindow : Window
         if (width < 3 || height < 3)
         {
             SelectionRect.Visibility = Visibility.Collapsed;
+            DimOverlay.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -90,6 +90,36 @@ public partial class RegionSelectionWindow : Window
         HintBorder.Visibility = Visibility.Collapsed;
         ActionsBar.Visibility = Visibility.Visible;
         Cursor = Cursors.Arrow;
+    }
+
+    private void UpdateSelectionVisuals(Point current)
+    {
+        var left = Math.Min(_startPoint.X, current.X);
+        var top = Math.Min(_startPoint.Y, current.Y);
+        var width = Math.Abs(current.X - _startPoint.X);
+        var height = Math.Abs(current.Y - _startPoint.Y);
+
+        Canvas.SetLeft(SelectionRect, left);
+        Canvas.SetTop(SelectionRect, top);
+        SelectionRect.Width = width;
+        SelectionRect.Height = height;
+        UpdateDimOverlay(_startPoint, current);
+    }
+
+    private void UpdateDimOverlay(Point start, Point current)
+    {
+        var left = Math.Min(start.X, current.X);
+        var top = Math.Min(start.Y, current.Y);
+        var width = Math.Abs(current.X - start.X);
+        var height = Math.Abs(current.Y - start.Y);
+
+        var geometry = new GeometryGroup { FillRule = FillRule.EvenOdd };
+        geometry.Children.Add(new RectangleGeometry(
+            new Rect(0, 0, SelectionCanvas.ActualWidth, SelectionCanvas.ActualHeight)));
+        if (width > 0 && height > 0)
+            geometry.Children.Add(new RectangleGeometry(new Rect(left, top, width, height)));
+
+        DimOverlay.Data = geometry;
     }
 
     private void CopySelected_Click(object sender, RoutedEventArgs e)
@@ -142,10 +172,22 @@ public partial class RegionSelectionWindow : Window
         DialogResult = false;
     }
 
-    protected override void OnKeyDown(KeyEventArgs e)
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
-        base.OnKeyDown(e);
+        if (e.Key == Key.Space && SelectedImage is not null)
+        {
+            e.Handled = true;
+            DialogResult = true;
+            return;
+        }
+
         if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
             DialogResult = false;
+            return;
+        }
+
+        base.OnPreviewKeyDown(e);
     }
 }
