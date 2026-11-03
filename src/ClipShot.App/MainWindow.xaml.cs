@@ -58,7 +58,7 @@ public partial class MainWindow : Window
             {
                 _latestReleaseUri = release.Url;
                 UpdateNoticeTitle.Text = $"ClipShot {release.Version} is available";
-                UpdateNoticeDetails.Text = $"You're using version {currentVersion}. Open the release page to update.";
+                UpdateNoticeDetails.Text = $"You're using version {currentVersion}. Update now to install the latest version.";
                 UpdateNoticePanel.Visibility = Visibility.Visible;
             }
             else
@@ -72,12 +72,27 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ViewUpdate_Click(object sender, RoutedEventArgs e)
+    private async void UpdateNow_Click(object sender, RoutedEventArgs e)
     {
-        if (_latestReleaseUri is null)
-            return;
-
-        Process.Start(new ProcessStartInfo(_latestReleaseUri.AbsoluteUri) { UseShellExecute = true });
+        if (_latestReleaseUri is null) return;
+        UpdateNowButton.IsEnabled = false;
+        UpdateNowButton.Content = "Downloading…";
+        UpdateNoticeDetails.Text = "Downloading and preparing the update. ClipShot will restart when it is ready.";
+        try
+        {
+            var release = await UpdateChecker.GetLatestReleaseAsync();
+            if (release is null) throw new InvalidOperationException("The latest release executable could not be found.");
+            await UpdateInstaller.DownloadAndRestartAsync(release.ExecutableUrl);
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            UpdateNowButton.IsEnabled = true;
+            UpdateNowButton.Content = "Update now";
+            UpdateNoticeDetails.Text = "The update could not be installed. You can download it from the release page.";
+            MessageBox.Show("ClipShot could not install the update.\n\n" + ex.Message, "Update failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Process.Start(new ProcessStartInfo(_latestReleaseUri.AbsoluteUri) { UseShellExecute = true });
+        }
     }
 
     private void StartWithWindows_Changed(object sender, RoutedEventArgs e)
