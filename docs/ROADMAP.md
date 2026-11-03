@@ -6,6 +6,8 @@
 - [x] Copy captured image to clipboard
 - [x] Save full-screen capture as PNG
 - [x] Region selection overlay
+- [x] Copy selected region to clipboard
+- [x] Save selected region as PNG
 
 ## Milestone 2 — Everyday workflow
 - [ ] Global keyboard shortcut
