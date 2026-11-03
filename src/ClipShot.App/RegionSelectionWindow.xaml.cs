@@ -1,3 +1,5 @@
+using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
+using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Controls;
@@ -16,6 +18,7 @@ public partial class RegionSelectionWindow : Window
     private bool _isSelecting;
 
     public BitmapSource? SelectedImage { get; private set; }
+    public bool WasSaved { get; private set; }
 
     public RegionSelectionWindow(BitmapSource screenshot)
     {
@@ -26,6 +29,9 @@ public partial class RegionSelectionWindow : Window
 
     private void SelectionCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (ActionsBar.Visibility == Visibility.Visible)
+            return;
+
         _startPoint = e.GetPosition(SelectionCanvas);
         _isSelecting = true;
         SelectionRect.Visibility = Visibility.Visible;
@@ -66,7 +72,7 @@ public partial class RegionSelectionWindow : Window
 
         if (width < 3 || height < 3)
         {
-            DialogResult = false;
+            SelectionRect.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -80,7 +86,54 @@ public partial class RegionSelectionWindow : Window
         var cropped = new CroppedBitmap(_screenshot, new Int32Rect(x, y, cropWidth, cropHeight));
         cropped.Freeze();
         SelectedImage = cropped;
-        DialogResult = true;
+        HintBorder.Visibility = Visibility.Collapsed;
+        ActionsBar.Visibility = Visibility.Visible;
+        Cursor = Cursors.Arrow;
+    }
+
+    private void CopySelected_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedImage is not null)
+            DialogResult = true;
+    }
+
+    private void SaveSelected_Click(object sender, RoutedEventArgs e)
+    {
+        if (SelectedImage is null)
+            return;
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Save selected region",
+            Filter = "PNG image (*.png)|*.png",
+            DefaultExt = ".png",
+            AddExtension = true,
+            FileName = $"ClipShot-{DateTime.Now:yyyyMMdd-HHmmss}.png"
+        };
+
+        if (dialog.ShowDialog(this) != true)
+            return;
+
+        try
+        {
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(SelectedImage));
+            using var stream = File.Create(dialog.FileName);
+            encoder.Save(stream);
+            WasSaved = true;
+            DialogResult = true;
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(this,
+                $"ClipShot couldn't save the selected region.\n\n{ex.Message}",
+                "Save error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void CancelSelection_Click(object sender, RoutedEventArgs e)
+    {
+        DialogResult = false;
     }
 
     private void SelectionCanvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
