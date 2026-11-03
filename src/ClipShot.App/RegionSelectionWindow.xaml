@@ -8,7 +8,7 @@
         <Image x:Name="ScreenshotImage" Stretch="Fill"/>
         <Path x:Name="DimOverlay" Fill="#99000000" IsHitTestVisible="False"
               Visibility="Collapsed"/>
-        <Canvas x:Name="SelectionCanvas" Background="Transparent"
+        <Canvas x:Name="SelectionCanvas" Background="Transparent" Focusable="True"
                 MouseLeftButtonDown="SelectionCanvas_MouseLeftButtonDown"
                 MouseMove="SelectionCanvas_MouseMove"
                 MouseLeftButtonUp="SelectionCanvas_MouseLeftButtonUp"
