@@ -1,5 +1,8 @@
+using System;
 using System.Diagnostics;
+using System.IO;
 using System.Net.Http;
+using System.Threading.Tasks;
 
 namespace ClipShot.Services;
 
@@ -34,12 +37,14 @@ internal static class UpdateInstaller
             "Start-Process -FilePath " + Quote(executable) + "\n" +
             "Remove-Item -LiteralPath $PSCommandPath -Force\n";
         await File.WriteAllTextAsync(scriptPath, script, new System.Text.UTF8Encoding(false));
-        Process.Start(new ProcessStartInfo
+        var updaterProcess = Process.Start(new ProcessStartInfo
         {
             FileName = "powershell.exe",
             Arguments = "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + scriptPath + "\"",
             UseShellExecute = false,
             CreateNoWindow = true
-        }) ?? throw new InvalidOperationException("Windows could not start the update helper.");
+        });
+        if (updaterProcess is null)
+            throw new InvalidOperationException("Windows could not start the update helper.");
     }
 }
