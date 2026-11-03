@@ -17,6 +17,13 @@ internal sealed class GlobalHotkeyManager : IDisposable
     {
         UnregisterAll();
 
+        if (string.Equals(settings.RegionKey, settings.FullScreenKey, StringComparison.OrdinalIgnoreCase) &&
+            settings.RegionModifiers == settings.FullScreenModifiers)
+        {
+            error = "The two actions must use different shortcuts.";
+            return false;
+        }
+
         if (!TryRegisterOne(RegionHotkeyId, settings.RegionKey, settings.RegionModifiers, out error))
             return false;
 
