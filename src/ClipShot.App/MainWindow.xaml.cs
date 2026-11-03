@@ -89,7 +89,7 @@ public partial class MainWindow : Window
         try
         {
             var bitmap = _captureService.CapturePrimaryScreen();
-            System.Windows.Clipboard.SetImage(bitmap);
+            CopyImageToClipboard(bitmap);
             StatusText.Text = $"Copied full screen · {bitmap.PixelWidth} × {bitmap.PixelHeight}";
         }
         catch (Exception ex)
