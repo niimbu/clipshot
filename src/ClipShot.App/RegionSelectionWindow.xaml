@@ -6,6 +6,8 @@
         Cursor="Cross" Background="#99000000">
     <Grid>
         <Image x:Name="ScreenshotImage" Stretch="Fill"/>
+        <Path x:Name="DimOverlay" Fill="#99000000" IsHitTestVisible="False"
+              Visibility="Collapsed"/>
         <Canvas x:Name="SelectionCanvas" Background="Transparent"
                 MouseLeftButtonDown="SelectionCanvas_MouseLeftButtonDown"
                 MouseMove="SelectionCanvas_MouseMove"
@@ -25,7 +27,7 @@
                 Margin="0,24,0,0" Padding="8" CornerRadius="10"
                 Background="#F0202124" Visibility="Collapsed">
             <StackPanel Orientation="Horizontal">
-                <Button Content="Copy" Click="CopySelected_Click" MinWidth="76"
+                <Button Content="Copy  ·  Space" Click="CopySelected_Click" MinWidth="112"
                         Padding="14,8" Margin="2" Background="#FF3978F6"
                         Foreground="White" BorderThickness="0" Cursor="Hand"/>
                 <Button Content="Save PNG" Click="SaveSelected_Click" MinWidth="88"
