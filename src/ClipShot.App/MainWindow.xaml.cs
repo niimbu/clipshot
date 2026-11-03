@@ -77,8 +77,13 @@ public partial class MainWindow : Window
             var selected = selector.ShowDialog();
             if (selected == true && selector.SelectedImage is { } region)
             {
-                System.Windows.Clipboard.SetImage(region);
-                StatusText.Text = $"Copied selected region · {region.PixelWidth} × {region.PixelHeight}";
+                if (selector.WasSaved)
+                    StatusText.Text = $"Saved selected region · {region.PixelWidth} × {region.PixelHeight}";
+                else
+                {
+                    System.Windows.Clipboard.SetImage(region);
+                    StatusText.Text = $"Copied selected region · {region.PixelWidth} × {region.PixelHeight}";
+                }
             }
             else
             {
@@ -88,7 +93,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             StatusText.Text = "Region capture failed";
-            System.Windows.MessageBox.Show($"ClipShot couldn't capture that region.\n\n{ex.Message}", "Capture error",
+            System.Windows.MessageBox.Show($"ClipShot couldn't capture that region.\n\n{ex.Message}", "Region capture error",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
         finally
