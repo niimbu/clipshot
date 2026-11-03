@@ -47,6 +47,7 @@
                             <TextBlock Text="Full screen" FontSize="16" FontWeight="SemiBold" Margin="0,18,0,0" Foreground="#202124"/>
                             <TextBlock Text="Capture your primary display." FontSize="12" Foreground="#777B82" Margin="0,5,0,18"/>
                             <Button Content="Capture screen" HorizontalAlignment="Left" Click="CaptureScreen_Click" Background="#3978F6" Foreground="White" BorderBrush="#3978F6"/>
+                            <Button Content="Save screen as PNG" HorizontalAlignment="Left" Margin="0,8,0,0" Click="SaveScreen_Click"/>
                         </StackPanel>
                     </Border>
                     <Border Grid.Column="2" Background="#F8F9FB" CornerRadius="14" Padding="22">
