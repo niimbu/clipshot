@@ -3,6 +3,8 @@ using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using Key = System.Windows.Input.Key;
 using ModifierKeys = System.Windows.Input.ModifierKeys;
 using System.IO;
+using System.Diagnostics;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
@@ -15,10 +17,12 @@ namespace ClipShot;
 public partial class MainWindow : Window
 {
     private readonly CaptureService _captureService = new();
+    private readonly DispatcherTimer _updateCheckTimer = new() { Interval = TimeSpan.FromHours(6) };
     private HotkeySettings _hotkeySettings = new();
     private HotkeySettings _activeHotkeySettings = new();
     private GlobalHotkeyManager? _hotkeyManager;
     private HwndSource? _source;
+    private Uri? _latestReleaseUri;
 
     public MainWindow()
     {
@@ -26,8 +30,76 @@ public partial class MainWindow : Window
         _hotkeySettings = HotkeySettings.Load();
         _activeHotkeySettings = _hotkeySettings.Copy();
         UpdateHotkeyLabels();
+        StartWithWindowsCheckBox.IsChecked = StartupManager.IsEnabled();
         SourceInitialized += MainWindow_SourceInitialized;
-        Closed += (_, _) => _hotkeyManager?.Dispose();
+        Loaded += MainWindow_Loaded;
+        _updateCheckTimer.Tick += async (_, _) => await CheckForUpdatesAsync();
+        _updateCheckTimer.Start();
+        Closed += (_, _) =>
+        {
+            _updateCheckTimer.Stop();
+            _hotkeyManager?.Dispose();
+        };
+    }
+
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e) => await CheckForUpdatesAsync();
+
+    private async Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            var release = await UpdateChecker.GetLatestReleaseAsync();
+            if (release is null)
+                return;
+
+            var currentVersion = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0);
+            if (release.Version > currentVersion)
+            {
+                _latestReleaseUri = release.Url;
+                UpdateNoticeTitle.Text = $"ClipShot {release.Version} is available";
+                UpdateNoticeDetails.Text = $"You're using version {currentVersion}. Open the release page to update.";
+                UpdateNoticePanel.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                UpdateNoticePanel.Visibility = Visibility.Collapsed;
+            }
+        }
+        catch
+        {
+            // Update checks are best-effort and must never interrupt capturing.
+        }
+    }
+
+    private void ViewUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_latestReleaseUri is null)
+            return;
+
+        Process.Start(new ProcessStartInfo(_latestReleaseUri.AbsoluteUri) { UseShellExecute = true });
+    }
+
+    private void StartWithWindows_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded || StartWithWindowsCheckBox.IsChecked is not bool enabled)
+            return;
+
+        try
+        {
+            StartupManager.SetEnabled(enabled);
+            StatusText.Text = enabled ? "ClipShot will start when you sign in" : "ClipShot will not start automatically";
+        }
+        catch (Exception ex)
+        {
+            StartWithWindowsCheckBox.Checked -= StartWithWindows_Changed;
+            StartWithWindowsCheckBox.Unchecked -= StartWithWindows_Changed;
+            StartWithWindowsCheckBox.IsChecked = !enabled;
+            StartWithWindowsCheckBox.Checked += StartWithWindows_Changed;
+            StartWithWindowsCheckBox.Unchecked += StartWithWindows_Changed;
+            StatusText.Text = "Couldn't update Windows startup setting";
+            MessageBox.Show($"ClipShot couldn't change the Windows startup setting.\n\n{ex.Message}", "Startup setting error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void MainWindow_SourceInitialized(object? sender, EventArgs e)
@@ -51,14 +123,9 @@ public partial class MainWindow : Window
         handled = true;
         switch (wParam.ToInt32())
         {
-            case 1:
-                CaptureRegion(IsVisible);
-                break;
-            case 2:
-                CaptureScreenFromHotkey();
-                break;
+            case 1: CaptureRegion(IsVisible); break;
+            case 2: CaptureScreenFromHotkey(); break;
         }
-
         return IntPtr.Zero;
     }
 
@@ -75,17 +142,15 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             StatusText.Text = "Capture failed";
-            System.Windows.MessageBox.Show($"ClipShot couldn't capture the screen.\n\n{ex.Message}", "Capture error",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            MessageBox.Show($"ClipShot couldn't capture the screen.\n\n{ex.Message}", "Capture error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private void CaptureScreenFromHotkey()
     {
         var restoreWindow = IsVisible;
-        if (restoreWindow)
-            Hide();
-
+        if (restoreWindow) Hide();
         try
         {
             var bitmap = _captureService.CapturePrimaryScreen();
@@ -95,13 +160,12 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             StatusText.Text = "Capture failed";
-            System.Windows.MessageBox.Show($"ClipShot couldn't capture the screen.\n\n{ex.Message}", "Capture error",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            MessageBox.Show($"ClipShot couldn't capture the screen.\n\n{ex.Message}", "Capture error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
-            if (restoreWindow)
-                Show();
+            if (restoreWindow) Show();
         }
     }
 
@@ -109,7 +173,6 @@ public partial class MainWindow : Window
     {
         System.Windows.Clipboard.SetImage(bitmap);
         System.Windows.Clipboard.Flush();
-
         if (!System.Windows.Clipboard.ContainsImage())
             throw new InvalidOperationException("Windows did not confirm that the screenshot reached the clipboard. Please try copying again.");
     }
@@ -121,24 +184,18 @@ public partial class MainWindow : Window
             var bitmap = _captureService.CapturePrimaryScreen();
             var dialog = new SaveFileDialog
             {
-                Title = "Save screenshot",
-                Filter = "PNG image (*.png)|*.png",
-                DefaultExt = ".png",
-                AddExtension = true,
-                FileName = $"ClipShot-{DateTime.Now:yyyyMMdd-HHmmss}.png"
+                Title = "Save screenshot", Filter = "PNG image (*.png)|*.png", DefaultExt = ".png",
+                AddExtension = true, FileName = $"ClipShot-{DateTime.Now:yyyyMMdd-HHmmss}.png"
             };
-
-            if (dialog.ShowDialog() != true)
-                return;
-
+            if (dialog.ShowDialog() != true) return;
             SavePng(bitmap, dialog.FileName);
             StatusText.Text = $"Saved PNG · {bitmap.PixelWidth} × {bitmap.PixelHeight}";
         }
         catch (Exception ex)
         {
             StatusText.Text = "Save failed";
-            System.Windows.MessageBox.Show($"ClipShot couldn't save the screenshot.\n\n{ex.Message}", "Save error",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            MessageBox.Show($"ClipShot couldn't save the screenshot.\n\n{ex.Message}", "Save error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -154,9 +211,7 @@ public partial class MainWindow : Window
 
     private void CaptureRegion(bool restoreWindow)
     {
-        if (restoreWindow)
-            Hide();
-
+        if (restoreWindow) Hide();
         try
         {
             var screenshot = _captureService.CapturePrimaryScreen();
@@ -172,38 +227,30 @@ public partial class MainWindow : Window
                     StatusText.Text = $"Copied selected region · {region.PixelWidth} × {region.PixelHeight}";
                 }
             }
-            else
-            {
-                StatusText.Text = "Region capture cancelled";
-            }
+            else StatusText.Text = "Region capture cancelled";
         }
         catch (Exception ex)
         {
             StatusText.Text = "Region capture failed";
-            System.Windows.MessageBox.Show($"ClipShot couldn't capture that region.\n\n{ex.Message}", "Region capture error",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            MessageBox.Show($"ClipShot couldn't capture that region.\n\n{ex.Message}", "Region capture error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
-            if (restoreWindow)
-                Show();
+            if (restoreWindow) Show();
         }
     }
 
     private void RegionHotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (!CaptureHotkey(e, RegionHotkeyBox, out var key, out var modifiers))
-            return;
-
+        if (!CaptureHotkey(e, RegionHotkeyBox, out var key, out var modifiers)) return;
         _hotkeySettings.RegionKey = key.ToString();
         _hotkeySettings.RegionModifiers = (int)modifiers;
     }
 
     private void FullScreenHotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (!CaptureHotkey(e, FullScreenHotkeyBox, out var key, out var modifiers))
-            return;
-
+        if (!CaptureHotkey(e, FullScreenHotkeyBox, out var key, out var modifiers)) return;
         _hotkeySettings.FullScreenKey = key.ToString();
         _hotkeySettings.FullScreenModifiers = (int)modifiers;
     }
@@ -213,11 +260,8 @@ public partial class MainWindow : Window
         e.Handled = true;
         key = e.Key == Key.System ? e.SystemKey : e.Key;
         modifiers = Keyboard.Modifiers;
-
         if (key is Key.None or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or
-            Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin)
-            return false;
-
+            Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin) return false;
         box.Text = FormatHotkey(key, modifiers);
         return true;
     }
@@ -251,7 +295,6 @@ public partial class MainWindow : Window
             _hotkeyManager?.TryRegister(_activeHotkeySettings, out _);
             return;
         }
-
         try
         {
             candidate.Save();
@@ -263,8 +306,7 @@ public partial class MainWindow : Window
         {
             _hotkeyManager.TryRegister(_activeHotkeySettings, out _);
             StatusText.Text = "Couldn't save shortcuts";
-            System.Windows.MessageBox.Show(ex.Message, "Shortcut settings error",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, "Shortcut settings error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
