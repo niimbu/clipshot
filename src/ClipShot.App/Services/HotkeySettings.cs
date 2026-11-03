@@ -6,7 +6,7 @@ namespace ClipShot.Services;
 
 internal sealed class HotkeySettings
 {
-    public string RegionKey { get; set; } = "Snapshot";
+    public string RegionKey { get; set; } = "PrintScreen";
     public int RegionModifiers { get; set; } = 0;
     public string FullScreenKey { get; set; } = "D1";
     public int FullScreenModifiers { get; set; } = 6;
