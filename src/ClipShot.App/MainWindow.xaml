@@ -1,7 +1,7 @@
  <Window x:Class="ClipShot.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ClipShot" Height="770" Width="900" MinHeight="700" MinWidth="760"
+        Title="ClipShot" Icon="/ClipShot;component/Assets/clipshot.ico" Height="770" Width="900" MinHeight="700" MinWidth="760"
         WindowStartupLocation="CenterScreen" Background="#F6F7F9">
     <Grid Margin="34">
         <Grid.RowDefinitions>
@@ -13,9 +13,12 @@
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0">
-            <StackPanel>
-                <TextBlock Text="ClipShot" FontSize="28" FontWeight="SemiBold" Foreground="#202124"/>
-                <TextBlock Text="A clear, quick way to capture what’s on your screen." Margin="0,5,0,0" FontSize="13" Foreground="#777B82"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Image Source="/ClipShot;component/Assets/clipshot-icon.png" Width="42" Height="42" Margin="0,0,13,0" Stretch="Uniform"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="ClipShot" FontSize="28" FontWeight="SemiBold" Foreground="#202124"/>
+                    <TextBlock Text="A clear, quick way to capture what’s on your screen." Margin="0,5,0,0" FontSize="13" Foreground="#777B82"/>
+                </StackPanel>
             </StackPanel>
             <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#E9F0FF" CornerRadius="20" Padding="12,6">
                 <TextBlock Text="EARLY ACCESS" FontSize="10" FontWeight="SemiBold" Foreground="#3269D6"/>
