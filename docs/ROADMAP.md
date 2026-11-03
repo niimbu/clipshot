@@ -4,7 +4,7 @@
 - [x] WPF desktop shell and visual direction
 - [x] Primary-display capture
 - [x] Copy captured image to clipboard
-- [ ] Save capture as PNG
+- [x] Save full-screen capture as PNG
 - [x] Region selection overlay
 
 ## Milestone 2 — Everyday workflow
