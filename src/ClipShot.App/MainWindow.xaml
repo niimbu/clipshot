@@ -1,0 +1,78 @@
+<Window x:Class="ClipShot.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ClipShot" Height="610" Width="900" MinHeight="560" MinWidth="760"
+        WindowStartupLocation="CenterScreen" Background="#F6F7F9">
+    <Grid Margin="34">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="24"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <StackPanel>
+                <TextBlock Text="ClipShot" FontSize="28" FontWeight="SemiBold" Foreground="#202124"/>
+                <TextBlock Text="A clear, quick way to capture what’s on your screen." Margin="0,5,0,0" FontSize="13" Foreground="#777B82"/>
+            </StackPanel>
+            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#E9F0FF" CornerRadius="20" Padding="12,6">
+                <TextBlock Text="EARLY ACCESS" FontSize="10" FontWeight="SemiBold" Foreground="#3269D6"/>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2" Background="White" CornerRadius="18" BorderBrush="#E8EAEE" BorderThickness="1" Padding="28">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <StackPanel>
+                    <TextBlock Text="New capture" FontSize="18" FontWeight="SemiBold" Foreground="#202124"/>
+                    <TextBlock Text="Choose what you want to capture." Margin="0,5,0,0" FontSize="12" Foreground="#777B82"/>
+                </StackPanel>
+
+                <Grid Grid.Row="1" VerticalAlignment="Center" Margin="0,20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="20"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Background="#F8F9FB" CornerRadius="14" Padding="22">
+                        <StackPanel>
+                            <Border Width="46" Height="46" Background="#EAF0FF" CornerRadius="12" HorizontalAlignment="Left">
+                                <TextBlock Text="▧" FontSize="24" Foreground="#3978F6" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Full screen" FontSize="16" FontWeight="SemiBold" Margin="0,18,0,0" Foreground="#202124"/>
+                            <TextBlock Text="Capture your primary display." FontSize="12" Foreground="#777B82" Margin="0,5,0,18"/>
+                            <Button Content="Capture screen" HorizontalAlignment="Left" Click="CaptureScreen_Click" Background="#3978F6" Foreground="White" BorderBrush="#3978F6"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="2" Background="#F8F9FB" CornerRadius="14" Padding="22">
+                        <StackPanel>
+                            <Border Width="46" Height="46" Background="#EAF0FF" CornerRadius="12" HorizontalAlignment="Left">
+                                <TextBlock Text="⌗" FontSize="24" Foreground="#3978F6" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Select a region" FontSize="16" FontWeight="SemiBold" Margin="0,18,0,0" Foreground="#202124"/>
+                            <TextBlock Text="Drag to capture a specific area." FontSize="12" Foreground="#777B82" Margin="0,5,0,18"/>
+                            <Button Content="Select region" HorizontalAlignment="Left" Click="CaptureRegion_Click"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Border Grid.Row="2" Background="#F7F8FA" CornerRadius="9" Padding="12,10">
+                    <DockPanel>
+                        <TextBlock Text="Tip" FontWeight="SemiBold" Foreground="#3978F6" DockPanel.Dock="Left" Margin="0,0,10,0"/>
+                        <TextBlock Text="Your capture is copied to the clipboard automatically." Foreground="#777B82" FontSize="12"/>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <DockPanel Grid.Row="3" Margin="2,18,2,0">
+            <TextBlock Text="CLIPSHOT  ·  WINDOWS" FontSize="10" Foreground="#9A9EA5" FontWeight="SemiBold"/>
+            <TextBlock x:Name="StatusText" Text="Ready when you are" FontSize="11" Foreground="#777B82" DockPanel.Dock="Right"/>
+        </DockPanel>
+    </Grid>
+</Window>
