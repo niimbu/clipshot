@@ -24,16 +24,18 @@ internal sealed class GlobalHotkeyManager : IDisposable
             return false;
         }
 
-        if (!TryRegisterOne(RegionHotkeyId, settings.RegionKey, settings.RegionModifiers, out error))
-            return false;
+        var regionRegistered = TryRegisterOne(RegionHotkeyId, settings.RegionKey, settings.RegionModifiers, out var regionError);
+        var fullScreenRegistered = TryRegisterOne(FullScreenHotkeyId, settings.FullScreenKey, settings.FullScreenModifiers, out var fullScreenError);
 
-        if (!TryRegisterOne(FullScreenHotkeyId, settings.FullScreenKey, settings.FullScreenModifiers, out error))
+        if (!regionRegistered && !fullScreenRegistered)
         {
-            NativeMethods.UnregisterHotKey(_windowHandle, RegionHotkeyId);
+            error = $"Region: {regionError} Full screen: {fullScreenError}";
             return false;
         }
 
-        error = null;
+        error = regionRegistered && fullScreenRegistered
+            ? null
+            : $"One shortcut could not be registered. Region: {regionError ?? "active"} Full screen: {fullScreenError ?? "active"}";
         return true;
     }
 
