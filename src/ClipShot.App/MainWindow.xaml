@@ -1,12 +1,12 @@
 <Window x:Class="ClipShot.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ClipShot" Height="610" Width="900" MinHeight="560" MinWidth="760"
+        Title="ClipShot" Height="710" Width="900" MinHeight="660" MinWidth="760"
         WindowStartupLocation="CenterScreen" Background="#F6F7F9">
     <Grid Margin="34">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="24"/>
+            <RowDefinition Height="18"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -26,6 +26,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <StackPanel>
@@ -68,10 +69,44 @@
                         <TextBlock Text="Your capture is copied to the clipboard automatically." Foreground="#777B82" FontSize="12"/>
                     </DockPanel>
                 </Border>
+
+                <Border Grid.Row="3" Background="#FBFCFE" BorderBrush="#E8EAEE" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,14,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Left">
+                                <TextBlock Text="Keyboard shortcuts" FontSize="14" FontWeight="SemiBold" Foreground="#202124"/>
+                                <TextBlock Text="Click a field and press your preferred key combination." FontSize="11" Foreground="#777B82" Margin="0,3,0,0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="Reset" Padding="12,7" Margin="0,0,8,0" Click="ResetHotkeys_Click"/>
+                                <Button Content="Save shortcuts" Padding="14,7" Background="#3978F6" Foreground="White" BorderBrush="#3978F6" Click="SaveHotkeys_Click"/>
+                            </StackPanel>
+                        </DockPanel>
+                        <Grid Grid.Row="1" Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="18"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="SELECT REGION" FontSize="9" FontWeight="SemiBold" Foreground="#777B82" Margin="0,0,0,6"/>
+                                <TextBox x:Name="RegionHotkeyBox" IsReadOnly="True" Focusable="True" PreviewKeyDown="RegionHotkeyBox_PreviewKeyDown" Padding="10,8" FontSize="12" BorderBrush="#DDE1E7" Background="White"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="FULL SCREEN" FontSize="9" FontWeight="SemiBold" Foreground="#777B82" Margin="0,0,0,6"/>
+                                <TextBox x:Name="FullScreenHotkeyBox" IsReadOnly="True" Focusable="True" PreviewKeyDown="FullScreenHotkeyBox_PreviewKeyDown" Padding="10,8" FontSize="12" BorderBrush="#DDE1E7" Background="White"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
             </Grid>
         </Border>
 
-        <DockPanel Grid.Row="3" Margin="2,18,2,0">
+        <DockPanel Grid.Row="3" Margin="2,14,2,0">
             <TextBlock Text="CLIPSHOT  ·  WINDOWS" FontSize="10" Foreground="#9A9EA5" FontWeight="SemiBold"/>
             <TextBlock x:Name="StatusText" Text="Ready when you are" FontSize="11" Foreground="#777B82" DockPanel.Dock="Right"/>
         </DockPanel>
