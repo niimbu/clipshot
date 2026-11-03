@@ -69,7 +69,7 @@ public partial class MainWindow : Window
         try
         {
             var bitmap = _captureService.CapturePrimaryScreen();
-            System.Windows.Clipboard.SetImage(bitmap);
+            CopyImageToClipboard(bitmap);
             StatusText.Text = $"Copied full screen · {bitmap.PixelWidth} × {bitmap.PixelHeight}";
         }
         catch (Exception ex)
@@ -103,6 +103,15 @@ public partial class MainWindow : Window
             if (restoreWindow)
                 Show();
         }
+    }
+
+    private static void CopyImageToClipboard(BitmapSource bitmap)
+    {
+        System.Windows.Clipboard.SetImage(bitmap);
+        System.Windows.Clipboard.Flush();
+
+        if (!System.Windows.Clipboard.ContainsImage())
+            throw new InvalidOperationException("Windows did not confirm that the screenshot reached the clipboard. Please try copying again.");
     }
 
     private void SaveScreen_Click(object sender, RoutedEventArgs e)
@@ -159,7 +168,7 @@ public partial class MainWindow : Window
                     StatusText.Text = $"Saved selected region · {region.PixelWidth} × {region.PixelHeight}";
                 else
                 {
-                    System.Windows.Clipboard.SetImage(region);
+                    CopyImageToClipboard(region);
                     StatusText.Text = $"Copied selected region · {region.PixelWidth} × {region.PixelHeight}";
                 }
             }
