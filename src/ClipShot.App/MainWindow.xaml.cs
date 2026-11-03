@@ -6,6 +6,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Reflection;
 using System.Windows;
+using MessageBox = System.Windows.MessageBox;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 using System.Windows.Input;
