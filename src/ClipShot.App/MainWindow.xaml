@@ -24,15 +24,15 @@
 
         <Border x:Name="UpdateNoticePanel" Grid.Row="1" Visibility="Collapsed" Background="#EAF2FF" BorderBrush="#C9DAFF" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,16,0,0">
             <DockPanel LastChildFill="True">
-                <Button Content="View update" DockPanel.Dock="Right" Click="ViewUpdate_Click" Padding="12,6" Background="#3978F6" Foreground="White" BorderBrush="#3978F6"/>
+                <Button x:Name="UpdateNowButton" Content="Update now" DockPanel.Dock="Right" Click="UpdateNow_Click" Padding="12,6" Background="#3978F6" Foreground="White" BorderBrush="#3978F6"/>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock x:Name="UpdateNoticeTitle" Text="A new version of ClipShot is available" FontWeight="SemiBold" Foreground="#244A91"/>
-                    <TextBlock x:Name="UpdateNoticeDetails" Text="Download the latest version to get the newest improvements." FontSize="11" Foreground="#536987" Margin="0,3,0,0"/>
+                    <TextBlock x:Name="UpdateNoticeDetails" Text="A newer version is ready. Update now or keep using this version." FontSize="11" Foreground="#536987" Margin="0,3,0,0"/>
                 </StackPanel>
             </DockPanel>
         </Border>
 
-        <Border Grid.Row="3" Background="White" CornerRadius="18" BorderBrush="#E8EAEE" BorderThickness="1" Padding="28">
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><Border Background="White" CornerRadius="18" BorderBrush="#E8EAEE" BorderThickness="1" Padding="28">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -124,7 +124,7 @@
                     </StackPanel>
                 </Border>
             </Grid>
-        </Border>
+        </Border></ScrollViewer>
 
         <DockPanel Grid.Row="4" Margin="2,14,2,0">
             <TextBlock Text="CLIPSHOT  ·  WINDOWS" FontSize="10" Foreground="#9A9EA5" FontWeight="SemiBold"/>
