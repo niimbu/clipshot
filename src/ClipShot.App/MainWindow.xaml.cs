@@ -17,9 +17,9 @@ public partial class MainWindow : Window
         try
         {
             var bitmap = _captureService.CapturePrimaryScreen();
-            Clipboard.SetImage(bitmap);
+            System.Windows.Clipboard.SetImage(bitmap);
             StatusText.Text = $"Copied full screen · {bitmap.PixelWidth} × {bitmap.PixelHeight}";
-            MessageBox.Show("Your screenshot has been copied to the clipboard.", "ClipShot",
+            System.Windows.MessageBox.Show("Your screenshot has been copied to the clipboard.", "ClipShot",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
