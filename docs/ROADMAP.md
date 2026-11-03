@@ -5,7 +5,7 @@
 - [x] Primary-display capture
 - [x] Copy captured image to clipboard
 - [ ] Save capture as PNG
-- [ ] Region selection overlay
+- [x] Region selection overlay
 
 ## Milestone 2 — Everyday workflow
 - [ ] Global keyboard shortcut
