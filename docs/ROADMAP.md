@@ -10,7 +10,8 @@
 - [x] Save selected region as PNG
 
 ## Milestone 2 — Everyday workflow
-- [ ] Global keyboard shortcut
+- [x] Global keyboard shortcuts for region and full-screen capture
+- [x] User-configurable shortcuts saved between launches
 - [ ] Capture all displays
 - [ ] Recent captures and output folder setting
 - [ ] Capture preview and quick actions
