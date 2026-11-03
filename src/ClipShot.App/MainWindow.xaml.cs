@@ -83,7 +83,7 @@ public partial class MainWindow : Window
             var release = await UpdateChecker.GetLatestReleaseAsync();
             if (release is null) throw new InvalidOperationException("The latest release executable could not be found.");
             await UpdateInstaller.DownloadAndRestartAsync(release.ExecutableUrl);
-            Application.Current.Shutdown();
+            System.Windows.Application.Current.Shutdown();
         }
         catch (Exception ex)
         {
