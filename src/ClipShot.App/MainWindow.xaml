@@ -120,7 +120,7 @@
                     <StackPanel>
                         <TextBlock Text="Preferences" FontSize="14" FontWeight="SemiBold" Foreground="#202124"/>
                         <CheckBox x:Name="StartWithWindowsCheckBox" Content="Start ClipShot when I sign in to Windows" Margin="0,10,0,0" FontSize="12" Foreground="#42464D" Checked="StartWithWindows_Changed" Unchecked="StartWithWindows_Changed"/>
-                        <TextBlock Text="ClipShot will run in the background so your screenshot shortcuts are ready." FontSize="11" Foreground="#777B82" Margin="22,4,0,0"/>
+                        <TextBlock Text="ClipShot will open automatically when you sign in, with your screenshot shortcuts ready." FontSize="11" Foreground="#777B82" Margin="22,4,0,0"/>
                     </StackPanel>
                 </Border>
             </Grid>
