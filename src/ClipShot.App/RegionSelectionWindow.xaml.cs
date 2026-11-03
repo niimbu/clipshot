@@ -33,6 +33,7 @@ public partial class RegionSelectionWindow : Window
         if (ActionsBar.Visibility == Visibility.Visible)
             return;
 
+        SelectionCanvas.Focus();
         _startPoint = e.GetPosition(SelectionCanvas);
         _isSelecting = true;
         SelectionRect.Visibility = Visibility.Visible;
