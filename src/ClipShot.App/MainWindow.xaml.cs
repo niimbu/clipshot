@@ -181,27 +181,34 @@ public partial class MainWindow : Window
 
     private void RegionHotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        CaptureHotkey(e, RegionHotkeyBox);
-        _hotkeySettings.RegionKey = ((KeyEventArgs)e).Key.ToString();
-        _hotkeySettings.RegionModifiers = (int)Keyboard.Modifiers;
+        if (!CaptureHotkey(e, RegionHotkeyBox, out var key, out var modifiers))
+            return;
+
+        _hotkeySettings.RegionKey = key.ToString();
+        _hotkeySettings.RegionModifiers = (int)modifiers;
     }
 
     private void FullScreenHotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        CaptureHotkey(e, FullScreenHotkeyBox);
-        _hotkeySettings.FullScreenKey = e.Key.ToString();
-        _hotkeySettings.FullScreenModifiers = (int)Keyboard.Modifiers;
-    }
-
-    private static void CaptureHotkey(KeyEventArgs e, System.Windows.Controls.TextBox box)
-    {
-        e.Handled = true;
-        if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or
-            Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.System)
+        if (!CaptureHotkey(e, FullScreenHotkeyBox, out var key, out var modifiers))
             return;
 
-        var modifiers = Keyboard.Modifiers;
-        box.Text = FormatHotkey(e.Key, modifiers);
+        _hotkeySettings.FullScreenKey = key.ToString();
+        _hotkeySettings.FullScreenModifiers = (int)modifiers;
+    }
+
+    private static bool CaptureHotkey(KeyEventArgs e, System.Windows.Controls.TextBox box, out Key key, out ModifierKeys modifiers)
+    {
+        e.Handled = true;
+        key = e.Key == Key.System ? e.SystemKey : e.Key;
+        modifiers = Keyboard.Modifiers;
+
+        if (key is Key.None or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or
+            Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin)
+            return false;
+
+        box.Text = FormatHotkey(key, modifiers);
+        return true;
     }
 
     private static string FormatHotkey(Key key, ModifierKeys modifiers)
