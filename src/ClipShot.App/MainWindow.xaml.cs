@@ -1,4 +1,4 @@
-using Microsoft.Win32;
+using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
