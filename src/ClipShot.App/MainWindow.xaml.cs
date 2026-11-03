@@ -16,6 +16,7 @@ public partial class MainWindow : Window
 {
     private readonly CaptureService _captureService = new();
     private HotkeySettings _hotkeySettings = new();
+    private HotkeySettings _activeHotkeySettings = new();
     private GlobalHotkeyManager? _hotkeyManager;
     private HwndSource? _source;
 
@@ -23,6 +24,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _hotkeySettings = HotkeySettings.Load();
+        _activeHotkeySettings = _hotkeySettings.Copy();
         UpdateHotkeyLabels();
         SourceInitialized += MainWindow_SourceInitialized;
         Closed += (_, _) => _hotkeyManager?.Dispose();
@@ -35,7 +37,7 @@ public partial class MainWindow : Window
         _source?.AddHook(WindowMessageHook);
         _hotkeyManager = new GlobalHotkeyManager(handle);
 
-        if (!_hotkeyManager.TryRegister(_hotkeySettings, out var error))
+        if (!_hotkeyManager.TryRegister(_activeHotkeySettings, out var error))
             StatusText.Text = $"Shortcut registration failed: {error}";
         else
             StatusText.Text = "Ready · Global shortcuts active";
@@ -233,10 +235,11 @@ public partial class MainWindow : Window
     private void SaveHotkeys_Click(object sender, RoutedEventArgs e)
     {
         var candidate = _hotkeySettings.Copy();
-        if (_hotkeyManager is null || !_hotkeyManager.TryRegister(candidate, out var error))
+        string? error = null;
+        if (_hotkeyManager is null || !_hotkeyManager.TryRegister(candidate, out error))
         {
             StatusText.Text = $"Shortcut unavailable: {error ?? "window is not ready"}";
-            _hotkeyManager?.TryRegister(_hotkeySettings, out _);
+            _hotkeyManager?.TryRegister(_activeHotkeySettings, out _);
             return;
         }
 
@@ -244,11 +247,12 @@ public partial class MainWindow : Window
         {
             candidate.Save();
             _hotkeySettings = candidate;
+            _activeHotkeySettings = candidate.Copy();
             StatusText.Text = "Keyboard shortcuts saved";
         }
         catch (Exception ex)
         {
-            _hotkeyManager.TryRegister(_hotkeySettings, out _);
+            _hotkeyManager.TryRegister(_activeHotkeySettings, out _);
             StatusText.Text = "Couldn't save shortcuts";
             System.Windows.MessageBox.Show(ex.Message, "Shortcut settings error",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
