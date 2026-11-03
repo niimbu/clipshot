@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Windows.Input;
 
 namespace ClipShot.Services;
 
@@ -22,8 +23,18 @@ internal sealed class HotkeySettings
             if (!File.Exists(SettingsPath))
                 return new HotkeySettings();
 
-            return JsonSerializer.Deserialize<HotkeySettings>(File.ReadAllText(SettingsPath))
-                   ?? new HotkeySettings();
+            var settings = JsonSerializer.Deserialize<HotkeySettings>(File.ReadAllText(SettingsPath))
+                           ?? new HotkeySettings();
+
+            if (!Enum.TryParse<Key>(settings.RegionKey, out var regionKey) || regionKey == Key.None ||
+                !Enum.TryParse<Key>(settings.FullScreenKey, out var fullScreenKey) || fullScreenKey == Key.None)
+                return new HotkeySettings();
+
+            settings.RegionKey = regionKey.ToString();
+            settings.FullScreenKey = fullScreenKey.ToString();
+            settings.RegionModifiers &= 0x0F;
+            settings.FullScreenModifiers &= 0x0F;
+            return settings;
         }
         catch
         {
