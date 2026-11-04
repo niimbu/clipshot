@@ -123,7 +123,12 @@ public partial class ScreenshotEditorWindow : Window
 
     private void AnnotationCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_tool is EditorTool.Pen or EditorTool.Highlight or EditorTool.Erase) return;
+        if (_tool is EditorTool.Pen or EditorTool.Highlight or EditorTool.Erase)
+        {
+            _beforeAction = RenderAnnotatedImage();
+            _drawing = true;
+            return;
+        }
         _start = e.GetPosition(AnnotationCanvas);
         _beforeAction = RenderAnnotatedImage();
         _drawing = true;
@@ -185,7 +190,14 @@ public partial class ScreenshotEditorWindow : Window
 
     private void AnnotationCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (!_drawing || _previewShape is null) return;
+        if (!_drawing) return;
+        if (_tool is EditorTool.Pen or EditorTool.Highlight or EditorTool.Erase)
+        {
+            _drawing = false;
+            if (_beforeAction is not null) SaveUndoPointFrom(_beforeAction);
+            return;
+        }
+        if (_previewShape is null) return;
         AnnotationCanvas.ReleaseMouseCapture();
         var end = e.GetPosition(AnnotationCanvas);
         UpdateShape(end);
