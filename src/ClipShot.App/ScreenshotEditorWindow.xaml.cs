@@ -138,12 +138,14 @@ public partial class ScreenshotEditorWindow : Window
     private void ApplySnapshot(BitmapSource snapshot)
     {
         PreviewImage.Source = snapshot;
-        PreviewImage.Width = snapshot.PixelWidth;
-        PreviewImage.Height = snapshot.PixelHeight;
-        AnnotationCanvas.Width = snapshot.PixelWidth;
-        AnnotationCanvas.Height = snapshot.PixelHeight;
-        PreviewSurface.Width = snapshot.PixelWidth;
-        PreviewSurface.Height = snapshot.PixelHeight;
+        var displayWidth = snapshot.PixelWidth * 96d / snapshot.DpiX;
+        var displayHeight = snapshot.PixelHeight * 96d / snapshot.DpiY;
+        PreviewImage.Width = displayWidth;
+        PreviewImage.Height = displayHeight;
+        AnnotationCanvas.Width = displayWidth;
+        AnnotationCanvas.Height = displayHeight;
+        PreviewSurface.Width = displayWidth;
+        PreviewSurface.Height = displayHeight;
         AnnotationCanvas.Strokes.Clear();
         AnnotationCanvas.Children.Clear();
     }
@@ -406,10 +408,20 @@ public partial class ScreenshotEditorWindow : Window
     {
         var source = PreviewImage.Source as BitmapSource;
         if (source is null) return;
-        var x = Math.Clamp((int)selection.Left, 0, source.PixelWidth - 1);
-        var y = Math.Clamp((int)selection.Top, 0, source.PixelHeight - 1);
-        var w = Math.Clamp((int)selection.Width, 1, source.PixelWidth - x);
-        var h = Math.Clamp((int)selection.Height, 1, source.PixelHeight - y);
+        // AnnotationCanvas coordinates are WPF DIPs; convert them to source bitmap pixels.
+        // This keeps the effect exactly under the user's drag selection at any display DPI.
+        var scaleX = source.PixelWidth / PreviewSurface.Width;
+        var scaleY = source.PixelHeight / PreviewSurface.Height;
+        var left = Math.Min(selection.Left, selection.Right);
+        var top = Math.Min(selection.Top, selection.Bottom);
+        var right = Math.Max(selection.Left, selection.Right);
+        var bottom = Math.Max(selection.Top, selection.Bottom);
+        var x = Math.Clamp((int)Math.Floor(left * scaleX), 0, source.PixelWidth - 1);
+        var y = Math.Clamp((int)Math.Floor(top * scaleY), 0, source.PixelHeight - 1);
+        var endX = Math.Clamp((int)Math.Ceiling(right * scaleX), x + 1, source.PixelWidth);
+        var endY = Math.Clamp((int)Math.Ceiling(bottom * scaleY), y + 1, source.PixelHeight);
+        var w = endX - x;
+        var h = endY - y;
         var crop = new CroppedBitmap(source, new Int32Rect(x, y, w, h));
         var converted = new FormatConvertedBitmap(crop, PixelFormats.Bgra32, null, 0);
         var stride = w * 4;
