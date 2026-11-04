@@ -12,6 +12,8 @@ using System.Windows.Media.Imaging;
 using System.Windows.Input;
 using System.Windows.Threading;
 using ClipShot.Services;
+using System.Drawing;
+using Forms = System.Windows.Forms;
 
 namespace ClipShot;
 
@@ -24,6 +26,9 @@ public partial class MainWindow : Window
     private GlobalHotkeyManager? _hotkeyManager;
     private HwndSource? _source;
     private Uri? _latestReleaseUri;
+    private Forms.NotifyIcon? _trayIcon;
+    private bool _allowExit;
+    private bool _trayNoticeShown;
 
     public MainWindow()
     {
@@ -32,7 +37,9 @@ public partial class MainWindow : Window
         _activeHotkeySettings = _hotkeySettings.Copy();
         UpdateHotkeyLabels();
         StartWithWindowsCheckBox.IsChecked = StartupManager.IsEnabled();
+        InitializeTrayIcon();
         SourceInitialized += MainWindow_SourceInitialized;
+        Closing += MainWindow_Closing;
         Loaded += MainWindow_Loaded;
         _updateCheckTimer.Tick += async (_, _) => await CheckForUpdatesAsync();
         _updateCheckTimer.Start();
@@ -40,7 +47,62 @@ public partial class MainWindow : Window
         {
             _updateCheckTimer.Stop();
             _hotkeyManager?.Dispose();
+            if (_trayIcon is not null) { _trayIcon.Visible = false; _trayIcon.Dispose(); }
         };
+    }
+
+
+    private void InitializeTrayIcon()
+    {
+        var icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? string.Empty)
+                   ?? System.Drawing.SystemIcons.Application;
+        _trayIcon = new Forms.NotifyIcon
+        {
+            Icon = icon,
+            Text = "ClipShot is running",
+            Visible = true
+        };
+
+        var menu = new Forms.ContextMenuStrip();
+        menu.Items.Add("Open ClipShot", null, (_, _) => RestoreFromTray());
+        menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add("Exit", null, (_, _) => ExitApplication());
+        _trayIcon.ContextMenuStrip = menu;
+        _trayIcon.DoubleClick += (_, _) => RestoreFromTray();
+    }
+
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_allowExit)
+            return;
+
+        e.Cancel = true;
+        Hide();
+        StatusText.Text = "ClipShot is running in the system tray";
+        if (!_trayNoticeShown && _trayIcon is not null)
+        {
+            _trayNoticeShown = true;
+            _trayIcon.BalloonTipTitle = "ClipShot is still running";
+            _trayIcon.BalloonTipText = "ClipShot is in the system tray. Your screenshot shortcuts are still active. Right-click its icon to exit.";
+            _trayIcon.BalloonTipIcon = Forms.ToolTipIcon.Info;
+            _trayIcon.ShowBalloonTip(4500);
+        }
+    }
+
+    private void RestoreFromTray()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    private void ExitApplication()
+    {
+        _allowExit = true;
+        if (_trayIcon is not null)
+            _trayIcon.Visible = false;
+        Close();
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e) => await CheckForUpdatesAsync();
@@ -235,13 +297,13 @@ public partial class MainWindow : Window
             var selected = selector.ShowDialog();
             if (selected == true && selector.SelectedImage is { } region)
             {
-                if (selector.WasSaved)
-                    StatusText.Text = $"Saved selected region · {region.PixelWidth} × {region.PixelHeight}";
-                else
-                {
-                    CopyImageToClipboard(region);
-                    StatusText.Text = $"Copied selected region · {region.PixelWidth} × {region.PixelHeight}";
-                }
+                var editor = new ScreenshotEditorWindow(region);
+                editor.ShowDialog();
+                StatusText.Text = editor.WasCopied
+                    ? $"Copied edited capture · {region.PixelWidth} × {region.PixelHeight}"
+                    : editor.WasSaved
+                        ? $"Saved capture · {region.PixelWidth} × {region.PixelHeight}"
+                        : "Capture editor closed";
             }
             else StatusText.Text = "Region capture cancelled";
         }
