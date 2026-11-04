@@ -1,4 +1,3 @@
-using Microsoft.Win32;
 using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
@@ -23,22 +22,22 @@ public partial class ScreenshotEditorWindow : Window
     {
         try
         {
-            Clipboard.SetImage(_image);
-            Clipboard.Flush();
-            if (!Clipboard.ContainsImage())
+            System.Windows.Clipboard.SetImage(_image);
+            System.Windows.Clipboard.Flush();
+            if (!System.Windows.Clipboard.ContainsImage())
                 throw new InvalidOperationException("Windows did not confirm the image reached the clipboard.");
             WasCopied = true;
             Close();
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Clipboard error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            System.Windows.MessageBox.Show(this, ex.Message, "Clipboard error", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new SaveFileDialog
+        var dialog = new Microsoft.Win32.SaveFileDialog
         {
             Title = "Save screenshot",
             Filter = "PNG image (*.png)|*.png",
