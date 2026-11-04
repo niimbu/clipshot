@@ -24,7 +24,7 @@ namespace ClipShot;
 
 public partial class ScreenshotEditorWindow : Window
 {
-    private enum EditorTool { Pen, Highlight, Erase, Arrow, Line, Rectangle, Ellipse, Text, Number, Blur, Pixelate }
+    private enum EditorTool { Pen, Highlight, Erase, Select, Arrow, Line, Rectangle, Ellipse, Text, Number, Blur, Pixelate }
     private EditorTool _tool = EditorTool.Pen;
     private Point _start;
     private Shape? _previewShape;
@@ -56,7 +56,7 @@ public partial class ScreenshotEditorWindow : Window
         AnnotationCanvas.EditingMode = tool switch
         {
             EditorTool.Pen or EditorTool.Highlight => InkCanvasEditingMode.Ink,
-            EditorTool.Erase => InkCanvasEditingMode.EraseByStroke,
+            EditorTool.Erase => InkCanvasEditingMode.EraseByStroke,\n            EditorTool.Select => InkCanvasEditingMode.Select,
             _ => InkCanvasEditingMode.None
         };
         AnnotationCanvas.Cursor = tool is EditorTool.Blur or EditorTool.Pixelate ? Cursors.Cross : Cursors.Pen;
@@ -73,7 +73,7 @@ public partial class ScreenshotEditorWindow : Window
 
     private void Pen_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Pen);
     private void Highlight_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Highlight);
-    private void Erase_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Erase);
+    private void Erase_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Erase);\n    private void Select_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Select);\n\n    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)\n    {\n        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.Z)\n        { Undo_Click(this, new RoutedEventArgs()); e.Handled = true; }\n        else if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && (e.Key == Key.Y || (e.Key == Key.Z && (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)))\n        { Redo_Click(this, new RoutedEventArgs()); e.Handled = true; }\n        else if (e.Key == Key.Delete)\n        { DeleteSelection(); e.Handled = true; }\n    }\n\n    private void DeleteSelection_Click(object sender, RoutedEventArgs e) => DeleteSelection();\n\n    private void DeleteSelection()\n    {\n        if (AnnotationCanvas.GetSelectedStrokes().Count == 0 && AnnotationCanvas.GetSelectedElements().Count == 0) return;\n        SaveUndoPoint();\n        AnnotationCanvas.GetSelectedStrokes().Clear();\n        foreach (var element in AnnotationCanvas.GetSelectedElements().Cast<UIElement>().ToArray())\n            AnnotationCanvas.Children.Remove(element);\n    }
     private void Arrow_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Arrow);
     private void Line_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Line);
     private void Rectangle_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Rectangle);
