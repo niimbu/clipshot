@@ -1,22 +1,31 @@
 <Window x:Class="ClipShot.ScreenshotEditorWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ClipShot — Screenshot" Width="980" Height="700" MinWidth="640" MinHeight="420"
+        Title="ClipShot — Screenshot" Width="1100" Height="760" MinWidth="700" MinHeight="480"
         WindowStartupLocation="CenterScreen" Background="#F3F4F6">
     <DockPanel Margin="18">
         <Border DockPanel.Dock="Top" Background="White" CornerRadius="12" Padding="10" Margin="0,0,0,14">
-            <DockPanel>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Copy" Click="Copy_Click" Background="#3978F6" Foreground="White" BorderBrush="#3978F6" Margin="0,0,8,0"/>
-                    <Button Content="Save PNG" Click="Save_Click" Margin="0,0,8,0"/>
+            <DockPanel LastChildFill="True">
+                <WrapPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                    <Button Content="Pen" Click="Pen_Click" Margin="0,0,6,0"/>
+                    <Button Content="Highlight" Click="Highlight_Click" Margin="0,0,6,0"/>
+                    <Button Content="Erase" Click="Erase_Click" Margin="0,0,6,0"/>
+                    <Button Content="Undo" Click="Undo_Click" Margin="0,0,12,0"/>
+                    <Button Content="Copy" Click="Copy_Click" Background="#3978F6" Foreground="White" BorderBrush="#3978F6" Margin="0,0,6,0"/>
+                    <Button Content="Save PNG" Click="Save_Click" Margin="0,0,6,0"/>
                     <Button Content="Close" Click="Close_Click"/>
-                </StackPanel>
-                <TextBlock Text="Screenshot ready" Foreground="#777B82" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                </WrapPanel>
+                <TextBlock Text="Draw on your screenshot · tools are ready" Foreground="#777B82"
+                           VerticalAlignment="Center" HorizontalAlignment="Right" Margin="12,0,4,0"/>
             </DockPanel>
         </Border>
-        <Border Background="White" CornerRadius="12" Padding="16">
+        <Border Background="#FFF9F2" BorderBrush="#E9A66B" BorderThickness="2" CornerRadius="12" Padding="10">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                <Image x:Name="PreviewImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Grid x:Name="PreviewSurface" Background="#FFF9F2">
+                    <Image x:Name="PreviewImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <InkCanvas x:Name="AnnotationCanvas" Background="Transparent" EditingMode="Ink"
+                               DefaultDrawingAttributes="{x:Null}"/>
+                </Grid>
             </ScrollViewer>
         </Border>
     </DockPanel>
