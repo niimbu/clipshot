@@ -1,14 +1,13 @@
-using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 using Cursors = System.Windows.Input.Cursors;
-using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Controls;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using Point = System.Windows.Point;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using Rectangle = System.Windows.Shapes.Rectangle;
 
 namespace ClipShot;
 
@@ -19,7 +18,6 @@ public partial class RegionSelectionWindow : Window
     private bool _isSelecting;
 
     public BitmapSource? SelectedImage { get; private set; }
-    public bool WasSaved { get; private set; }
 
     public RegionSelectionWindow(BitmapSource screenshot)
     {
@@ -28,19 +26,33 @@ public partial class RegionSelectionWindow : Window
         ScreenshotImage.Source = screenshot;
     }
 
+    private void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        SizeDimFull();
+        Activate();
+        Focus();
+    }
+
+    private void SelectionCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (DimFull.Visibility == Visibility.Visible)
+            SizeDimFull();
+    }
+
+    private void SizeDimFull()
+    {
+        DimFull.Width = Math.Max(0, SelectionCanvas.ActualWidth);
+        DimFull.Height = Math.Max(0, SelectionCanvas.ActualHeight);
+    }
+
     private void SelectionCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (ActionsBar.Visibility == Visibility.Visible)
-            return;
-
+        ResetSelectionVisual();
         _startPoint = e.GetPosition(SelectionCanvas);
         _isSelecting = true;
-        SelectionRect.Visibility = Visibility.Visible;
-        Canvas.SetLeft(SelectionRect, _startPoint.X);
-        Canvas.SetTop(SelectionRect, _startPoint.Y);
-        SelectionRect.Width = 0;
-        SelectionRect.Height = 0;
+        HintBorder.Visibility = Visibility.Collapsed;
         SelectionCanvas.CaptureMouse();
+        Cursor = Cursors.Cross;
     }
 
     private void SelectionCanvas_MouseMove(object sender, MouseEventArgs e)
@@ -49,12 +61,11 @@ public partial class RegionSelectionWindow : Window
             return;
 
         var current = e.GetPosition(SelectionCanvas);
-        var left = Math.Min(_startPoint.X, current.X);
-        var top = Math.Min(_startPoint.Y, current.Y);
-        Canvas.SetLeft(SelectionRect, left);
-        Canvas.SetTop(SelectionRect, top);
-        SelectionRect.Width = Math.Abs(current.X - _startPoint.X);
-        SelectionRect.Height = Math.Abs(current.Y - _startPoint.Y);
+        var bounds = Normalize(_startPoint, current);
+        if (bounds.Width < 1 && bounds.Height < 1)
+            return;
+
+        UpdateChrome(bounds);
     }
 
     private void SelectionCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -66,75 +77,109 @@ public partial class RegionSelectionWindow : Window
         SelectionCanvas.ReleaseMouseCapture();
 
         var current = e.GetPosition(SelectionCanvas);
-        var left = Math.Min(_startPoint.X, current.X);
-        var top = Math.Min(_startPoint.Y, current.Y);
-        var width = Math.Abs(current.X - _startPoint.X);
-        var height = Math.Abs(current.Y - _startPoint.Y);
-
-        if (width < 3 || height < 3)
+        var bounds = Normalize(_startPoint, current);
+        if (bounds.Width < 3 || bounds.Height < 3)
         {
-            SelectionRect.Visibility = Visibility.Collapsed;
+            ResetSelectionVisual();
             return;
         }
 
-        var scaleX = _screenshot.PixelWidth / Math.Max(1, SelectionCanvas.ActualWidth);
-        var scaleY = _screenshot.PixelHeight / Math.Max(1, SelectionCanvas.ActualHeight);
-        var x = Math.Clamp((int)Math.Floor(left * scaleX), 0, _screenshot.PixelWidth - 1);
-        var y = Math.Clamp((int)Math.Floor(top * scaleY), 0, _screenshot.PixelHeight - 1);
-        var cropWidth = Math.Clamp((int)Math.Ceiling(width * scaleX), 1, _screenshot.PixelWidth - x);
-        var cropHeight = Math.Clamp((int)Math.Ceiling(height * scaleY), 1, _screenshot.PixelHeight - y);
-
-        var cropped = new CroppedBitmap(_screenshot, new Int32Rect(x, y, cropWidth, cropHeight));
+        var pixels = ToPixelRect(bounds);
+        var cropped = new CroppedBitmap(_screenshot, pixels);
         cropped.Freeze();
         SelectedImage = cropped;
+        // Hand the crop to the annotation editor immediately.
+        DialogResult = true;
+    }
+
+    private void UpdateChrome(Rect bounds)
+    {
+        var canvasWidth = SelectionCanvas.ActualWidth;
+        var canvasHeight = SelectionCanvas.ActualHeight;
+
+        DimFull.Visibility = Visibility.Collapsed;
+        SetRect(DimTop, 0, 0, canvasWidth, Math.Max(0, bounds.Top));
+        SetRect(DimLeft, 0, bounds.Top, Math.Max(0, bounds.Left), Math.Max(0, bounds.Height));
+        SetRect(DimRight, bounds.Right, bounds.Top, Math.Max(0, canvasWidth - bounds.Right), Math.Max(0, bounds.Height));
+        SetRect(DimBottom, 0, bounds.Bottom, canvasWidth, Math.Max(0, canvasHeight - bounds.Bottom));
+
+        SelectionRect.Visibility = Visibility.Visible;
+        Canvas.SetLeft(SelectionRect, bounds.Left);
+        Canvas.SetTop(SelectionRect, bounds.Top);
+        SelectionRect.Width = bounds.Width;
+        SelectionRect.Height = bounds.Height;
+
+        var pixels = ToPixelRect(bounds);
+        SizeText.Text = $"{pixels.Width} × {pixels.Height}";
+        SizeBadge.Visibility = Visibility.Visible;
         HintBorder.Visibility = Visibility.Collapsed;
-        ActionsBar.Visibility = Visibility.Visible;
-        Cursor = Cursors.Arrow;
+        PositionSizeBadge(bounds, canvasWidth, canvasHeight);
     }
 
-    private void CopySelected_Click(object sender, RoutedEventArgs e)
+    private void PositionSizeBadge(Rect bounds, double canvasWidth, double canvasHeight)
     {
-        if (SelectedImage is not null)
-            DialogResult = true;
+        SizeBadge.UpdateLayout();
+        var badgeWidth = SizeBadge.ActualWidth;
+        var badgeHeight = SizeBadge.ActualHeight;
+        var badgeLeft = Clamp(bounds.Left + (bounds.Width - badgeWidth) / 2, 10, canvasWidth - badgeWidth - 10);
+        var badgeTop = bounds.Top - badgeHeight - 10;
+        if (badgeTop < 10)
+            badgeTop = Clamp(bounds.Top + 10, 10, Math.Max(10, canvasHeight - badgeHeight - 10));
+
+        Canvas.SetLeft(SizeBadge, badgeLeft);
+        Canvas.SetTop(SizeBadge, badgeTop);
     }
 
-    private void SaveSelected_Click(object sender, RoutedEventArgs e)
+    private void ResetSelectionVisual()
     {
-        if (SelectedImage is null)
-            return;
-
-        var dialog = new SaveFileDialog
-        {
-            Title = "Save selected region",
-            Filter = "PNG image (*.png)|*.png",
-            DefaultExt = ".png",
-            AddExtension = true,
-            FileName = $"ClipShot-{DateTime.Now:yyyyMMdd-HHmmss}.png"
-        };
-
-        if (dialog.ShowDialog(this) != true)
-            return;
-
-        try
-        {
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(SelectedImage));
-            using var stream = File.Create(dialog.FileName);
-            encoder.Save(stream);
-            WasSaved = true;
-            DialogResult = true;
-        }
-        catch (Exception ex)
-        {
-            System.Windows.MessageBox.Show(this,
-                $"ClipShot couldn't save the selected region.\n\n{ex.Message}",
-                "Save error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        _isSelecting = false;
+        SelectedImage = null;
+        SelectionRect.Visibility = Visibility.Collapsed;
+        SelectionRect.Width = 0;
+        SelectionRect.Height = 0;
+        DimTop.Visibility = Visibility.Collapsed;
+        DimLeft.Visibility = Visibility.Collapsed;
+        DimRight.Visibility = Visibility.Collapsed;
+        DimBottom.Visibility = Visibility.Collapsed;
+        SizeBadge.Visibility = Visibility.Collapsed;
+        HintBorder.Visibility = Visibility.Visible;
+        DimFull.Visibility = Visibility.Visible;
+        SizeDimFull();
+        Cursor = Cursors.Cross;
     }
 
-    private void CancelSelection_Click(object sender, RoutedEventArgs e)
+    private Int32Rect ToPixelRect(Rect bounds)
     {
-        DialogResult = false;
+        var scaleX = _screenshot.PixelWidth / Math.Max(1, SelectionCanvas.ActualWidth);
+        var scaleY = _screenshot.PixelHeight / Math.Max(1, SelectionCanvas.ActualHeight);
+        var x = Math.Clamp((int)Math.Floor(bounds.Left * scaleX), 0, Math.Max(0, _screenshot.PixelWidth - 1));
+        var y = Math.Clamp((int)Math.Floor(bounds.Top * scaleY), 0, Math.Max(0, _screenshot.PixelHeight - 1));
+        var cropWidth = Math.Clamp((int)Math.Ceiling(bounds.Width * scaleX), 1, _screenshot.PixelWidth - x);
+        var cropHeight = Math.Clamp((int)Math.Ceiling(bounds.Height * scaleY), 1, _screenshot.PixelHeight - y);
+        return new Int32Rect(x, y, cropWidth, cropHeight);
+    }
+
+    private static Rect Normalize(Point start, Point current)
+    {
+        var left = Math.Min(start.X, current.X);
+        var top = Math.Min(start.Y, current.Y);
+        return new Rect(left, top, Math.Abs(current.X - start.X), Math.Abs(current.Y - start.Y));
+    }
+
+    private static void SetRect(Rectangle rectangle, double x, double y, double width, double height)
+    {
+        rectangle.Visibility = Visibility.Visible;
+        Canvas.SetLeft(rectangle, x);
+        Canvas.SetTop(rectangle, y);
+        rectangle.Width = Math.Max(0, width);
+        rectangle.Height = Math.Max(0, height);
+    }
+
+    private static double Clamp(double value, double min, double max)
+    {
+        if (max < min)
+            return min;
+        return Math.Clamp(value, min, max);
     }
 
     private void SelectionCanvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
@@ -146,6 +191,9 @@ public partial class RegionSelectionWindow : Window
     {
         base.OnKeyDown(e);
         if (e.Key == Key.Escape)
+        {
             DialogResult = false;
+            e.Handled = true;
+        }
     }
 }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 16 16">
+  <!-- Original ClipShot logo supplied by the project owner. -->
+  <defs>
+    <style>
+      .st0 { fill: url(#Foliage_23); }
+      .st1 { fill: url(#Foliage_21); }
+      .st2 { fill: url(#Foliage_22); }
+      .st3 { fill: url(#Foliage_2); }
+    </style>
+    <linearGradient id="Foliage_2" data-name="Foliage 2" x1="0" y1="8" x2="16" y2="8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#54ae6f"/>
+      <stop offset=".49" stop-color="#00aa4f"/>
+      <stop offset="1" stop-color="#007736"/>
+    </linearGradient>
+    <linearGradient id="Foliage_21" data-name="Foliage 2" x1="7.74" y1="9.43" x2="8.26" y2="9.43" xlink:href="#Foliage_2"/>
+    <linearGradient id="Foliage_22" data-name="Foliage 2" x1="9.86" y1="11.08" x2="11" y2="11.08" xlink:href="#Foliage_2"/>
+    <linearGradient id="Foliage_23" data-name="Foliage 2" x1="5" y1="11.08" x2="6.14" y2="11.08" xlink:href="#Foliage_2"/>
+  </defs>
+  <path class="st3" d="M16,8c0,4.42-3.58,8-8,8S0,12.42,0,8,3.58,0,8,0s8,3.58,8,8ZM12.77,4.08v6.75s.27,0,.27,0V3.82s-10.08,0-10.08,0v7.03s.27,0,.27,0v-6.75s9.54,0,9.54,0ZM7.12,9.33l.78-.77-3.24-3.24c-.48.64.03,1.56.55,2.09l1.91,1.92ZM10.82,7.37c.51-.52.98-1.46.52-2.05l-4.52,4.52.78.77,3.23-3.24ZM8.42,10.62l.77-.77-.31-.31-.78.78.31.3ZM6.31,11.89l1.17-1.17-.77-.77-.36.36c-.45-.44-1.14-.42-1.57.01s-.42,1.1,0,1.54c.39.4,1.09.47,1.52.03ZM9.7,11.9c.45.44,1.16.34,1.54-.08.4-.45.37-1.12-.05-1.52s-1.11-.42-1.54,0l-.37-.36-.78.77,1.19,1.18Z"/>
+  <circle class="st1" cx="8" cy="9.43" r=".26"/>
+  <circle class="st2" cx="10.43" cy="11.08" r=".57"/>
+  <circle class="st0" cx="5.57" cy="11.08" r=".57"/>
+</svg>

@@ -1,6 +1,6 @@
 # ClipShot
 
-A lightweight, open source and free Windows-native screenshot tool. Minimal, fast, and to the point.
+A lightweight, open source and free Windows-native screenshot tool by **niimbu**. Minimal, fast, and to the point.
 
 > **Status:** Early development. The first milestone is a dependable capture-and-copy workflow.
 
