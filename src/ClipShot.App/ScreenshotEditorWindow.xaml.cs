@@ -12,6 +12,7 @@ using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
 using Size = System.Windows.Size;
 using Rectangle = System.Windows.Shapes.Rectangle;
+using Path = System.Windows.Shapes.Path;
 using TextBox = System.Windows.Controls.TextBox;
 using Orientation = System.Windows.Controls.Orientation;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
@@ -379,7 +380,7 @@ public partial class ScreenshotEditorWindow : Window
             _eraseChanged = true;
         }
         var hitStrokes = AnnotationCanvas.Strokes.Where(stroke =>
-            stroke.HitTest(point, radius * 2)).ToArray();
+            stroke.HitTest(point, (int)(radius * 2))).ToArray();
         foreach (var stroke in hitStrokes)
         {
             AnnotationCanvas.Strokes.Remove(stroke);
