@@ -8,6 +8,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ClipShot</RootNamespace>
     <AssemblyName>ClipShot</AssemblyName>
+    <Version>1.0.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\branding\clipshot.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="..\..\assets\branding\clipshot.ico" Link="Assets\clipshot.ico" />
+    <Resource Include="..\..\assets\branding\clipshot-icon.png" Link="Assets\clipshot-icon.png" />
+  </ItemGroup>
 </Project>

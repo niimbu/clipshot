@@ -1,10 +1,11 @@
-<Window x:Class="ClipShot.MainWindow"
+ <Window x:Class="ClipShot.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ClipShot" Height="710" Width="900" MinHeight="660" MinWidth="760"
+        Title="ClipShot" Icon="/ClipShot;component/Assets/clipshot.ico" Height="770" Width="900" MinHeight="700" MinWidth="760"
         WindowStartupLocation="CenterScreen" Background="#F6F7F9">
     <Grid Margin="34">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="18"/>
             <RowDefinition Height="*"/>
@@ -12,20 +13,36 @@
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0">
-            <StackPanel>
-                <TextBlock Text="ClipShot" FontSize="28" FontWeight="SemiBold" Foreground="#202124"/>
-                <TextBlock Text="A clear, quick way to capture what’s on your screen." Margin="0,5,0,0" FontSize="13" Foreground="#777B82"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Image Source="/ClipShot;component/Assets/clipshot-icon.png" Width="42" Height="42" Margin="0,0,13,0" Stretch="Uniform"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="ClipShot" FontSize="28" FontWeight="SemiBold" Foreground="#202124"/>
+                    <TextBlock Text="A clear, quick way to capture what’s on your screen." Margin="0,5,0,0" FontSize="13" Foreground="#777B82"/>
+                </StackPanel>
             </StackPanel>
-            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#E9F0FF" CornerRadius="20" Padding="12,6">
-                <TextBlock Text="EARLY ACCESS" FontSize="10" FontWeight="SemiBold" Foreground="#3269D6"/>
-            </Border>
+            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top">
+                <Border HorizontalAlignment="Right" Background="#E9F0FF" CornerRadius="20" Padding="10,5" Margin="0,7,0,0">
+                    <TextBlock Text="EARLY ACCESS" FontSize="9" FontWeight="SemiBold" Foreground="#3269D6"/>
+                </Border>
+            </StackPanel>
         </Grid>
 
-        <Border Grid.Row="2" Background="White" CornerRadius="18" BorderBrush="#E8EAEE" BorderThickness="1" Padding="28">
+        <Border x:Name="UpdateNoticePanel" Grid.Row="1" Visibility="Collapsed" Background="#EAF2FF" BorderBrush="#C9DAFF" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,16,0,0">
+            <DockPanel LastChildFill="True">
+                <Button x:Name="UpdateNowButton" Content="Update now" DockPanel.Dock="Right" Click="UpdateNow_Click" Padding="12,6" Background="#3978F6" Foreground="White" BorderBrush="#3978F6"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="UpdateNoticeTitle" Text="A new version of ClipShot is available" FontWeight="SemiBold" Foreground="#244A91"/>
+                    <TextBlock x:Name="UpdateNoticeDetails" Text="A newer version is ready. Update now or keep using this version." FontSize="11" Foreground="#536987" Margin="0,3,0,0"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><Border Background="White" CornerRadius="18" BorderBrush="#E8EAEE" BorderThickness="1" Padding="28">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
@@ -103,12 +120,22 @@
                         </Grid>
                     </Grid>
                 </Border>
-            </Grid>
-        </Border>
 
-        <DockPanel Grid.Row="3" Margin="2,14,2,0">
-            <TextBlock Text="CLIPSHOT  ·  WINDOWS" FontSize="10" Foreground="#9A9EA5" FontWeight="SemiBold"/>
-            <TextBlock x:Name="StatusText" Text="Ready when you are" FontSize="11" Foreground="#777B82" DockPanel.Dock="Right"/>
+                <Border Grid.Row="4" Background="#FBFCFE" BorderBrush="#E8EAEE" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Preferences" FontSize="14" FontWeight="SemiBold" Foreground="#202124"/>
+                        <CheckBox x:Name="StartWithWindowsCheckBox" Content="Start ClipShot when I sign in to Windows" Margin="0,10,0,0" FontSize="12" Foreground="#42464D" Checked="StartWithWindows_Changed" Unchecked="StartWithWindows_Changed"/>
+                        <TextBlock Text="ClipShot will open automatically when you sign in, with your screenshot shortcuts ready." FontSize="11" Foreground="#777B82" Margin="22,4,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border></ScrollViewer>
+
+        <DockPanel Grid.Row="4" Margin="2,14,2,0" LastChildFill="False">
+            <TextBlock Text="CLIPSHOT  ·  WINDOWS" FontSize="10" Foreground="#9A9EA5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            <TextBlock x:Name="StatusText" Text="Ready when you are" FontSize="11" Foreground="#777B82" VerticalAlignment="Center" Margin="18,0,12,0" DockPanel.Dock="Right"/>
+            <Button x:Name="CheckForUpdatesButton" Content="Check for updates" Click="CheckForUpdates_Click"
+                    Padding="12,7" FontSize="11" DockPanel.Dock="Right"/>
         </DockPanel>
     </Grid>
 </Window>

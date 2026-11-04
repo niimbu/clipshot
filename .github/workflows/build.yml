@@ -23,18 +23,66 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Prepare branding assets
+        shell: pwsh
+        run: |
+          if (-not (Get-Command magick.exe -ErrorAction SilentlyContinue)) {
+            choco install imagemagick --no-progress --yes
+          }
+          ./assets/branding/build-branding.ps1
+
       - name: Build
         run: dotnet build ClipShot.slnx --configuration Release
 
       - name: Publish self-contained Windows app
         run: dotnet publish src/ClipShot.App/ClipShot.App.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false --output publish/win-x64
 
-      - name: Prepare release assets
+      # Configure WINDOWS_SIGNING_CERTIFICATE_BASE64 and WINDOWS_SIGNING_CERTIFICATE_PASSWORD
+      # as GitHub Actions secrets to Authenticode-sign the executable before packaging.
+      - name: Sign Windows executable
+        shell: pwsh
+        env:
+          SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_BASE64) -or
+              [string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_PASSWORD)) {
+            Write-Host "Signing secrets are not configured; continuing with an unsigned build."
+            exit 0
+          }
+
+          $certificatePath = Join-Path $env:RUNNER_TEMP "clipshot-signing.pfx"
+          [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:SIGNING_CERTIFICATE_BASE64))
+          try {
+            $sdkRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits/10/bin"
+            $signtool = Get-ChildItem $sdkRoot -Filter signtool.exe -Recurse |
+              Where-Object { $_.FullName -match '\\x64\\signtool.exe$' } |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if (-not $signtool) { throw "Windows SDK signtool.exe was not found on the runner." }
+
+            $exePath = "publish/win-x64/ClipShot.exe"
+            & $signtool.FullName sign /fd SHA256 /td SHA256 /tr "http://timestamp.digicert.com" /f $certificatePath /p $env:SIGNING_CERTIFICATE_PASSWORD $exePath
+            if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed with exit code $LASTEXITCODE." }
+
+            & $signtool.FullName verify /pa /v $exePath
+            if ($LASTEXITCODE -ne 0) { throw "Authenticode signature verification failed." }
+          }
+          finally {
+            Remove-Item $certificatePath -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Prepare release assets and checksums
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
           Copy-Item publish/win-x64/ClipShot.exe release-assets/ClipShot.exe
           Compress-Archive -Path publish/win-x64/* -DestinationPath release-assets/ClipShot-win-x64-portable.zip
+          $assets = Get-ChildItem release-assets -File | Sort-Object Name
+          $checksums = $assets | ForEach-Object {
+            "$( (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() )  $($_.Name)"
+          }
+          $checksums | Set-Content release-assets/SHA256SUMS.txt -Encoding ascii
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -61,3 +109,4 @@ jobs:
           files: |
             release-files/ClipShot.exe
             release-files/ClipShot-win-x64-portable.zip
+            release-files/SHA256SUMS.txt

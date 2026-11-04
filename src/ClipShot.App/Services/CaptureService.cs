@@ -27,7 +27,7 @@ public sealed class CaptureService
         try
         {
             var source = Imaging.CreateBitmapSourceFromHBitmap(handle, IntPtr.Zero,
-                Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                Int32Rect.Empty, BitmapSizeOptions.FromWidthAndHeight(bounds.Width, bounds.Height));
             source.Freeze();
             return source;
         }
