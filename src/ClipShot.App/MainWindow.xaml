@@ -20,9 +20,13 @@
                     <TextBlock Text="A clear, quick way to capture what’s on your screen." Margin="0,5,0,0" FontSize="13" Foreground="#777B82"/>
                 </StackPanel>
             </StackPanel>
-            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#E9F0FF" CornerRadius="20" Padding="12,6">
-                <TextBlock Text="EARLY ACCESS" FontSize="10" FontWeight="SemiBold" Foreground="#3269D6"/>
-            </Border>
+            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top">
+                <Button x:Name="CheckForUpdatesButton" Content="Check for updates" Click="CheckForUpdates_Click"
+                        Padding="12,7" FontSize="11"/>
+                <Border HorizontalAlignment="Right" Background="#E9F0FF" CornerRadius="20" Padding="10,5" Margin="0,7,0,0">
+                    <TextBlock Text="EARLY ACCESS" FontSize="9" FontWeight="SemiBold" Foreground="#3269D6"/>
+                </Border>
+            </StackPanel>
         </Grid>
 
         <Border x:Name="UpdateNoticePanel" Grid.Row="1" Visibility="Collapsed" Background="#EAF2FF" BorderBrush="#C9DAFF" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,16,0,0">
