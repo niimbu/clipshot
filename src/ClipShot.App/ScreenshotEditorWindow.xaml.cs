@@ -118,12 +118,22 @@ public partial class ScreenshotEditorWindow : Window
 
     private BitmapSource RenderAnnotatedImage()
     {
-        var width = Math.Max(1, (int)Math.Ceiling(PreviewSurface.Width));
-        var height = Math.Max(1, (int)Math.Ceiling(PreviewSurface.Height));
-        PreviewSurface.Measure(new Size(width, height));
-        PreviewSurface.Arrange(new Rect(0, 0, width, height));
+        // Keep the source bitmap's pixel dimensions and DPI. Rendering at 96 DPI using
+        // DIP dimensions silently downsamples high-DPI screenshots and changes their
+        // coordinate system after the first undo point.
+        var source = PreviewImage.Source as BitmapSource;
+        var pixelWidth = source?.PixelWidth ?? Math.Max(1, (int)Math.Ceiling(PreviewSurface.Width));
+        var pixelHeight = source?.PixelHeight ?? Math.Max(1, (int)Math.Ceiling(PreviewSurface.Height));
+        var dpiX = source?.DpiX > 0 ? source.DpiX : 96d;
+        var dpiY = source?.DpiY > 0 ? source.DpiY : 96d;
+        var dipWidth = pixelWidth * 96d / dpiX;
+        var dipHeight = pixelHeight * 96d / dpiY;
+
+        PreviewSurface.Measure(new Size(dipWidth, dipHeight));
+        PreviewSurface.Arrange(new Rect(0, 0, dipWidth, dipHeight));
         PreviewSurface.UpdateLayout();
-        var rendered = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+
+        var rendered = new RenderTargetBitmap(pixelWidth, pixelHeight, dpiX, dpiY, PixelFormats.Pbgra32);
         rendered.Render(PreviewSurface);
         rendered.Freeze();
         return rendered;
@@ -410,12 +420,17 @@ public partial class ScreenshotEditorWindow : Window
         if (source is null) return;
         // AnnotationCanvas coordinates are WPF DIPs; convert them to source bitmap pixels.
         // This keeps the effect exactly under the user's drag selection at any display DPI.
-        var scaleX = source.PixelWidth / PreviewSurface.Width;
-        var scaleY = source.PixelHeight / PreviewSurface.Height;
-        var left = Math.Min(selection.Left, selection.Right);
-        var top = Math.Min(selection.Top, selection.Bottom);
-        var right = Math.Max(selection.Left, selection.Right);
-        var bottom = Math.Max(selection.Top, selection.Bottom);
+        // Pointer positions are measured in the InkCanvas' local WPF-DIP space.
+        // Use that exact overlay size as the transform source (not the outer Grid or
+        // ScrollViewer viewport), then clamp before converting to bitmap pixels.
+        var overlayWidth = Math.Max(1d, AnnotationCanvas.Width);
+        var overlayHeight = Math.Max(1d, AnnotationCanvas.Height);
+        var scaleX = source.PixelWidth / overlayWidth;
+        var scaleY = source.PixelHeight / overlayHeight;
+        var left = Math.Clamp(Math.Min(selection.Left, selection.Right), 0, overlayWidth);
+        var top = Math.Clamp(Math.Min(selection.Top, selection.Bottom), 0, overlayHeight);
+        var right = Math.Clamp(Math.Max(selection.Left, selection.Right), 0, overlayWidth);
+        var bottom = Math.Clamp(Math.Max(selection.Top, selection.Bottom), 0, overlayHeight);
         var x = Math.Clamp((int)Math.Floor(left * scaleX), 0, source.PixelWidth - 1);
         var y = Math.Clamp((int)Math.Floor(top * scaleY), 0, source.PixelHeight - 1);
         var endX = Math.Clamp((int)Math.Ceiling(right * scaleX), x + 1, source.PixelWidth);
@@ -444,7 +459,7 @@ public partial class ScreenshotEditorWindow : Window
             small[o] = (byte)(bsum / count); small[o + 1] = (byte)(gsum / count);
             small[o + 2] = (byte)(rsum / count); small[o + 3] = (byte)(asum / count);
         }
-        var effect = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
+        var effect = new WriteableBitmap(w, h, source.DpiX, source.DpiY, PixelFormats.Bgra32, null);
         var expanded = new byte[h * stride];
         for (int py = 0; py < h; py++)
         for (int px = 0; px < w; px++)
@@ -460,7 +475,7 @@ public partial class ScreenshotEditorWindow : Window
             dc.DrawImage(source, new Rect(0, 0, source.PixelWidth, source.PixelHeight));
             dc.DrawImage(effect, new Rect(x, y, w, h));
         }
-        var rendered = new RenderTargetBitmap(source.PixelWidth, source.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+        var rendered = new RenderTargetBitmap(source.PixelWidth, source.PixelHeight, source.DpiX, source.DpiY, PixelFormats.Pbgra32);
         rendered.Render(full); rendered.Freeze();
         ApplySnapshot(rendered);
     }
