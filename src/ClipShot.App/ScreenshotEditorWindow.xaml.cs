@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Ink;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -30,6 +31,8 @@ public partial class ScreenshotEditorWindow : Window
         AnnotationCanvas.Height = image.PixelHeight * 96d / image.DpiY;
         PreviewImage.Width = AnnotationCanvas.Width;
         PreviewImage.Height = AnnotationCanvas.Height;
+        PreviewSurface.Width = AnnotationCanvas.Width;
+        PreviewSurface.Height = AnnotationCanvas.Height;
     }
 
     private void Pen_Click(object sender, RoutedEventArgs e)
@@ -46,7 +49,7 @@ public partial class ScreenshotEditorWindow : Window
         AnnotationCanvas.EditingMode = InkCanvasEditingMode.Ink;
         AnnotationCanvas.DefaultDrawingAttributes = new DrawingAttributes
         {
-            Color = Color.FromArgb(110, 255, 220, 0), Width = 18, Height = 18,
+            Color = System.Windows.Media.Color.FromArgb(110, 255, 220, 0), Width = 18, Height = 18,
             FitToCurve = true, IgnorePressure = true, IsHighlighter = true
         };
     }
@@ -62,18 +65,17 @@ public partial class ScreenshotEditorWindow : Window
 
     private BitmapSource RenderAnnotatedImage()
     {
-        var width = Math.Max(1, (int)Math.Ceiling(AnnotationCanvas.Width));
-        var height = Math.Max(1, (int)Math.Ceiling(AnnotationCanvas.Height));
-        var visual = new DrawingVisual();
-        using (var context = visual.RenderOpen())
-        {
-            context.DrawImage(_image, new Rect(0, 0, width, height));
-            AnnotationCanvas.Measure(new Size(width, height));
-            AnnotationCanvas.Arrange(new Rect(0, 0, width, height));
-            context.DrawVisual(AnnotationCanvas);
-        }
+        var width = Math.Max(1, (int)Math.Ceiling(PreviewSurface.Width));
+        var height = Math.Max(1, (int)Math.Ceiling(PreviewSurface.Height));
+
+        // Render the actual WPF preview surface so the screenshot and InkCanvas
+        // strokes are composited together. DrawingContext has no DrawVisual method.
+        PreviewSurface.Measure(new System.Windows.Size(width, height));
+        PreviewSurface.Arrange(new Rect(0, 0, width, height));
+        PreviewSurface.UpdateLayout();
+
         var rendered = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
-        rendered.Render(visual);
+        rendered.Render(PreviewSurface);
         rendered.Freeze();
         return rendered;
     }
