@@ -6,6 +6,7 @@ $ErrorActionPreference = "Stop"
 $repo = "niimbu/clipshot"
 $installDir = Join-Path $env:LOCALAPPDATA "Programs\ClipShot"
 $shortcutPath = Join-Path ([Environment]::GetFolderPath("Programs")) "ClipShot.lnk"
+$desktopShortcutPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "ClipShot.lnk"
 $apiUrl = "https://api.github.com/repos/$repo/releases/latest"
 
 Write-Host "Finding the latest ClipShot release..." -ForegroundColor Cyan
@@ -37,6 +38,16 @@ $shortcut.WorkingDirectory = $installDir
 $shortcut.Description = "Capture and share screenshots with ClipShot"
 $shortcut.Save()
 
+# A separate shortcut lets users remove the original downloaded installer/executable
+# without affecting the installed copy in LocalAppData.
+$desktopShortcut = $wsh.CreateShortcut($desktopShortcutPath)
+$desktopShortcut.TargetPath = $exePath
+$desktopShortcut.WorkingDirectory = $installDir
+$desktopShortcut.Description = "Capture and share screenshots with ClipShot"
+$desktopShortcut.Save()
+
 Write-Host ""
 Write-Host "ClipShot $($release.tag_name) was installed successfully." -ForegroundColor Green
-Write-Host "You can launch it from the Start Menu or run: $exePath"
+Write-Host "Start Menu and Desktop shortcuts have been created."
+Write-Host "You can now delete the separate downloaded installer or portable copy."
+Write-Host "Installed app location: $exePath"
