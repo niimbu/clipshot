@@ -21,8 +21,6 @@
                 </StackPanel>
             </StackPanel>
             <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top">
-                <Button x:Name="CheckForUpdatesButton" Content="Check for updates" Click="CheckForUpdates_Click"
-                        Padding="12,7" FontSize="11"/>
                 <Border HorizontalAlignment="Right" Background="#E9F0FF" CornerRadius="20" Padding="10,5" Margin="0,7,0,0">
                     <TextBlock Text="EARLY ACCESS" FontSize="9" FontWeight="SemiBold" Foreground="#3269D6"/>
                 </Border>
@@ -133,9 +131,11 @@
             </Grid>
         </Border></ScrollViewer>
 
-        <DockPanel Grid.Row="4" Margin="2,14,2,0">
-            <TextBlock Text="CLIPSHOT  ·  WINDOWS" FontSize="10" Foreground="#9A9EA5" FontWeight="SemiBold"/>
-            <TextBlock x:Name="StatusText" Text="Ready when you are" FontSize="11" Foreground="#777B82" DockPanel.Dock="Right"/>
+        <DockPanel Grid.Row="4" Margin="2,14,2,0" LastChildFill="False">
+            <TextBlock Text="CLIPSHOT  ·  WINDOWS" FontSize="10" Foreground="#9A9EA5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            <TextBlock x:Name="StatusText" Text="Ready when you are" FontSize="11" Foreground="#777B82" VerticalAlignment="Center" Margin="18,0,12,0" DockPanel.Dock="Right"/>
+            <Button x:Name="CheckForUpdatesButton" Content="Check for updates" Click="CheckForUpdates_Click"
+                    Padding="12,7" FontSize="11" DockPanel.Dock="Right"/>
         </DockPanel>
     </Grid>
 </Window>
