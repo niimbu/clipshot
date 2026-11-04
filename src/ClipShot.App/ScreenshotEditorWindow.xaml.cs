@@ -8,6 +8,17 @@ using System.Windows.Shapes;
 using System.Windows.Input;
 using Point = System.Windows.Point;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using Brushes = System.Windows.Media.Brushes;
+using Color = System.Windows.Media.Color;
+using Size = System.Windows.Size;
+using Rectangle = System.Windows.Shapes.Rectangle;
+using TextBox = System.Windows.Controls.TextBox;
+using Orientation = System.Windows.Controls.Orientation;
+using HorizontalAlignment = System.Windows.HorizontalAlignment;
+using Button = System.Windows.Controls.Button;
+using Clipboard = System.Windows.Clipboard;
+using MessageBox = System.Windows.MessageBox;
+using Cursors = System.Windows.Input.Cursors;
 
 namespace ClipShot;
 
