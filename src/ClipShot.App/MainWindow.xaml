@@ -1,114 +1,162 @@
 <Window x:Class="ClipShot.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ClipShot" Height="710" Width="900" MinHeight="660" MinWidth="760"
-        WindowStartupLocation="CenterScreen" Background="#F6F7F9">
-    <Grid Margin="34">
+        Title="ClipShot"
+        Width="700"
+        SizeToContent="Height"
+        MinWidth="660"
+        MaxWidth="700"
+        ResizeMode="CanMinimize"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource CanvasBrush}"
+        FontFamily="Segoe UI"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType">
+    <Grid Margin="28,26,28,22">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="18"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="22"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="16"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0">
-            <StackPanel>
-                <TextBlock Text="ClipShot" FontSize="28" FontWeight="SemiBold" Foreground="#202124"/>
-                <TextBlock Text="A clear, quick way to capture what’s on your screen." Margin="0,5,0,0" FontSize="13" Foreground="#777B82"/>
+            <StackPanel Orientation="Horizontal">
+                <Border Width="34" Height="34" CornerRadius="10" Background="{StaticResource PrimaryBrush}" Margin="0,1,12,0">
+                    <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Path Stroke="White"
+                              StrokeThickness="1.8"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Data="M3,8 V3 H8 M14,3 H19 V8 M19,14 V19 H14 M8,19 H3 V14"/>
+                    </Viewbox>
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="ClipShot" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}"/>
+                    <TextBlock Text="Capture a region, or the whole screen." Margin="0,2,0,0" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
+                </StackPanel>
             </StackPanel>
-            <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#E9F0FF" CornerRadius="20" Padding="12,6">
-                <TextBlock Text="EARLY ACCESS" FontSize="10" FontWeight="SemiBold" Foreground="#3269D6"/>
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="14"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource ActionCard}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Border Width="36" Height="36" CornerRadius="10" Background="{StaticResource KeycapBrush}" HorizontalAlignment="Left" VerticalAlignment="Top">
+                        <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Stroke="{StaticResource InkBrush}"
+                                  StrokeThickness="1.7"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  Data="M4,9 V4 H9 M15,4 H20 V9 M20,15 V20 H15 M9,20 H4 V15"/>
+                        </Viewbox>
+                    </Border>
+                    <TextBlock Grid.Row="1" Text="Region" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}" Margin="0,14,0,0"/>
+                    <TextBlock Grid.Row="2" Text="Drag around the area you want. It is copied when you confirm." TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0" LineHeight="18" MinHeight="36"/>
+                    <Button Grid.Row="3" Margin="0,16,0,0" Click="CaptureRegion_Click" Style="{StaticResource PrimaryButton}" AutomationProperties.Name="Select region">
+                        <DockPanel LastChildFill="True">
+                            <TextBlock x:Name="RegionHotkeyHint" DockPanel.Dock="Right" Opacity="0.62" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0,0,0" MaxWidth="130" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="Select region" VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2" Style="{StaticResource ActionCard}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Border Width="36" Height="36" CornerRadius="10" Background="{StaticResource KeycapBrush}" HorizontalAlignment="Left" VerticalAlignment="Center">
+                            <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Path Stroke="{StaticResource InkBrush}"
+                                      StrokeThickness="1.7"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      Data="M3,5 H21 V15 H3 Z M8,18 H16 M12,15 V18"/>
+                            </Viewbox>
+                        </Border>
+                        <Button Content="Save PNG" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Style="{StaticResource QuietButton}" Click="SaveScreen_Click"
+                                ToolTip="Save the full screen as a PNG file"
+                                AutomationProperties.Name="Save screen as PNG"/>
+                    </Grid>
+                    <TextBlock Grid.Row="1" Text="Full screen" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}" Margin="0,14,0,0"/>
+                    <TextBlock Grid.Row="2" Text="Grab the primary display and copy it to the clipboard." TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0" LineHeight="18" MinHeight="36"/>
+                    <Button Grid.Row="3" Margin="0,16,0,0" Click="CaptureScreen_Click" Style="{StaticResource PrimaryButton}" AutomationProperties.Name="Capture screen">
+                        <DockPanel LastChildFill="True">
+                            <TextBlock x:Name="ScreenHotkeyHint" DockPanel.Dock="Right" Opacity="0.62" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0,0,0" MaxWidth="130" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="Capture screen" VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </Button>
+                </Grid>
             </Border>
         </Grid>
 
-        <Border Grid.Row="2" Background="White" CornerRadius="18" BorderBrush="#E8EAEE" BorderThickness="1" Padding="28">
+        <Border Grid.Row="4" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="16" Padding="18,16">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <StackPanel>
-                    <TextBlock Text="New capture" FontSize="18" FontWeight="SemiBold" Foreground="#202124"/>
-                    <TextBlock Text="Choose what you want to capture." Margin="0,5,0,0" FontSize="12" Foreground="#777B82"/>
-                </StackPanel>
-
-                <Grid Grid.Row="1" VerticalAlignment="Center" Margin="0,20">
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="20"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,12,0">
+                        <TextBlock Text="Shortcuts" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}"/>
+                        <TextBlock Text="Click a field, then press a combination. It saves immediately." FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Reset" VerticalAlignment="Top" Style="{StaticResource QuietButton}" Click="ResetHotkeys_Click" AutomationProperties.Name="Reset shortcuts"/>
+                </Grid>
+                <Grid Grid.Row="1" Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="14"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Background="#F8F9FB" CornerRadius="14" Padding="22">
-                        <StackPanel>
-                            <Border Width="46" Height="46" Background="#EAF0FF" CornerRadius="12" HorizontalAlignment="Left">
-                                <TextBlock Text="▧" FontSize="24" Foreground="#3978F6" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <TextBlock Text="Full screen" FontSize="16" FontWeight="SemiBold" Margin="0,18,0,0" Foreground="#202124"/>
-                            <TextBlock Text="Capture your primary display." FontSize="12" Foreground="#777B82" Margin="0,5,0,18"/>
-                            <Button Content="Capture screen" HorizontalAlignment="Left" Click="CaptureScreen_Click" Background="#3978F6" Foreground="White" BorderBrush="#3978F6"/>
-                            <Button Content="Save screen as PNG" HorizontalAlignment="Left" Margin="0,8,0,0" Click="SaveScreen_Click"/>
-                        </StackPanel>
-                    </Border>
-                    <Border Grid.Column="2" Background="#F8F9FB" CornerRadius="14" Padding="22">
-                        <StackPanel>
-                            <Border Width="46" Height="46" Background="#EAF0FF" CornerRadius="12" HorizontalAlignment="Left">
-                                <TextBlock Text="⌗" FontSize="24" Foreground="#3978F6" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <TextBlock Text="Select a region" FontSize="16" FontWeight="SemiBold" Margin="0,18,0,0" Foreground="#202124"/>
-                            <TextBlock Text="Drag to capture a specific area." FontSize="12" Foreground="#777B82" Margin="0,5,0,18"/>
-                            <Button Content="Select region" HorizontalAlignment="Left" Click="CaptureRegion_Click"/>
-                        </StackPanel>
-                    </Border>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock x:Name="RegionHotkeyCaption" Text="Region" FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="2,0,0,6"/>
+                        <TextBox x:Name="RegionHotkeyBox"
+                                 Style="{StaticResource HotkeyBox}"
+                                 ToolTip="Click, then press the keys you want for region capture"
+                                 PreviewKeyDown="RegionHotkeyBox_PreviewKeyDown"
+                                 GotFocus="HotkeyBox_GotFocus"
+                                 LostFocus="HotkeyBox_LostFocus"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock x:Name="ScreenHotkeyCaption" Text="Full screen" FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="2,0,0,6"/>
+                        <TextBox x:Name="FullScreenHotkeyBox"
+                                 Style="{StaticResource HotkeyBox}"
+                                 ToolTip="Click, then press the keys you want for full-screen capture"
+                                 PreviewKeyDown="FullScreenHotkeyBox_PreviewKeyDown"
+                                 GotFocus="HotkeyBox_GotFocus"
+                                 LostFocus="HotkeyBox_LostFocus"/>
+                    </StackPanel>
                 </Grid>
-
-                <Border Grid.Row="2" Background="#F7F8FA" CornerRadius="9" Padding="12,10">
-                    <DockPanel>
-                        <TextBlock Text="Tip" FontWeight="SemiBold" Foreground="#3978F6" DockPanel.Dock="Left" Margin="0,0,10,0"/>
-                        <TextBlock Text="Your capture is copied to the clipboard automatically." Foreground="#777B82" FontSize="12"/>
-                    </DockPanel>
-                </Border>
-
-                <Border Grid.Row="3" Background="#FBFCFE" BorderBrush="#E8EAEE" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,14,0,0">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <DockPanel>
-                            <StackPanel DockPanel.Dock="Left">
-                                <TextBlock Text="Keyboard shortcuts" FontSize="14" FontWeight="SemiBold" Foreground="#202124"/>
-                                <TextBlock Text="Click a field and press your preferred key combination." FontSize="11" Foreground="#777B82" Margin="0,3,0,0"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="Reset" Padding="12,7" Margin="0,0,8,0" Click="ResetHotkeys_Click"/>
-                                <Button Content="Save shortcuts" Padding="14,7" Background="#3978F6" Foreground="White" BorderBrush="#3978F6" Click="SaveHotkeys_Click"/>
-                            </StackPanel>
-                        </DockPanel>
-                        <Grid Grid.Row="1" Margin="0,14,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="18"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="SELECT REGION" FontSize="9" FontWeight="SemiBold" Foreground="#777B82" Margin="0,0,0,6"/>
-                                <TextBox x:Name="RegionHotkeyBox" IsReadOnly="True" Focusable="True" PreviewKeyDown="RegionHotkeyBox_PreviewKeyDown" Padding="10,8" FontSize="12" BorderBrush="#DDE1E7" Background="White"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="FULL SCREEN" FontSize="9" FontWeight="SemiBold" Foreground="#777B82" Margin="0,0,0,6"/>
-                                <TextBox x:Name="FullScreenHotkeyBox" IsReadOnly="True" Focusable="True" PreviewKeyDown="FullScreenHotkeyBox_PreviewKeyDown" Padding="10,8" FontSize="12" BorderBrush="#DDE1E7" Background="White"/>
-                            </StackPanel>
-                        </Grid>
-                    </Grid>
-                </Border>
             </Grid>
         </Border>
 
-        <DockPanel Grid.Row="3" Margin="2,14,2,0">
-            <TextBlock Text="CLIPSHOT  ·  WINDOWS" FontSize="10" Foreground="#9A9EA5" FontWeight="SemiBold"/>
-            <TextBlock x:Name="StatusText" Text="Ready when you are" FontSize="11" Foreground="#777B82" DockPanel.Dock="Right"/>
-        </DockPanel>
+        <TextBlock x:Name="StatusText" Grid.Row="5" Text="Ready" Margin="2,14,2,0" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
     </Grid>
 </Window>

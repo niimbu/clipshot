@@ -40,7 +40,7 @@ public partial class MainWindow : Window
         if (!_hotkeyManager.TryRegister(_activeHotkeySettings, out var error))
             StatusText.Text = $"Shortcut registration failed: {error}";
         else
-            StatusText.Text = error is null ? "Ready · Global shortcuts active" : error;
+            StatusText.Text = error is null ? "Ready" : error;
     }
 
     private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -70,7 +70,7 @@ public partial class MainWindow : Window
         {
             var bitmap = _captureService.CapturePrimaryScreen();
             System.Windows.Clipboard.SetImage(bitmap);
-            StatusText.Text = $"Copied full screen · {bitmap.PixelWidth} × {bitmap.PixelHeight}";
+            StatusText.Text = $"Copied full screen  ·  {bitmap.PixelWidth} × {bitmap.PixelHeight}";
         }
         catch (Exception ex)
         {
@@ -90,7 +90,7 @@ public partial class MainWindow : Window
         {
             var bitmap = _captureService.CapturePrimaryScreen();
             System.Windows.Clipboard.SetImage(bitmap);
-            StatusText.Text = $"Copied full screen · {bitmap.PixelWidth} × {bitmap.PixelHeight}";
+            StatusText.Text = $"Copied full screen  ·  {bitmap.PixelWidth} × {bitmap.PixelHeight}";
         }
         catch (Exception ex)
         {
@@ -123,7 +123,7 @@ public partial class MainWindow : Window
                 return;
 
             SavePng(bitmap, dialog.FileName);
-            StatusText.Text = $"Saved PNG · {bitmap.PixelWidth} × {bitmap.PixelHeight}";
+            StatusText.Text = $"Saved PNG  ·  {bitmap.PixelWidth} × {bitmap.PixelHeight}";
         }
         catch (Exception ex)
         {
@@ -156,11 +156,11 @@ public partial class MainWindow : Window
             if (selected == true && selector.SelectedImage is { } region)
             {
                 if (selector.WasSaved)
-                    StatusText.Text = $"Saved selected region · {region.PixelWidth} × {region.PixelHeight}";
+                    StatusText.Text = $"Saved region  ·  {region.PixelWidth} × {region.PixelHeight}";
                 else
                 {
                     System.Windows.Clipboard.SetImage(region);
-                    StatusText.Text = $"Copied selected region · {region.PixelWidth} × {region.PixelHeight}";
+                    StatusText.Text = $"Copied region  ·  {region.PixelWidth} × {region.PixelHeight}";
                 }
             }
             else
@@ -188,6 +188,7 @@ public partial class MainWindow : Window
 
         _hotkeySettings.RegionKey = key.ToString();
         _hotkeySettings.RegionModifiers = (int)modifiers;
+        CommitHotkeys();
     }
 
     private void FullScreenHotkeyBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -197,13 +198,18 @@ public partial class MainWindow : Window
 
         _hotkeySettings.FullScreenKey = key.ToString();
         _hotkeySettings.FullScreenModifiers = (int)modifiers;
+        CommitHotkeys();
     }
 
     private static bool CaptureHotkey(KeyEventArgs e, System.Windows.Controls.TextBox box, out Key key, out ModifierKeys modifiers)
     {
-        e.Handled = true;
         key = e.Key == Key.System ? e.SystemKey : e.Key;
         modifiers = Keyboard.Modifiers;
+
+        if (key is Key.Tab or Key.Escape)
+            return false;
+
+        e.Handled = true;
 
         if (key is Key.None or Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or
             Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin)
@@ -220,26 +226,73 @@ public partial class MainWindow : Window
         if (modifiers.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
         if (modifiers.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
         if (modifiers.HasFlag(ModifierKeys.Windows)) parts.Add("Win");
-        parts.Add(key == Key.PrintScreen ? "Print Screen" : key.ToString());
+        parts.Add(FormatKey(key));
         return string.Join(" + ", parts);
+    }
+
+    private static string FormatKey(Key key)
+    {
+        if (key >= Key.D0 && key <= Key.D9)
+            return ((char)('0' + ((int)key - (int)Key.D0))).ToString();
+
+        if (key >= Key.NumPad0 && key <= Key.NumPad9)
+            return "Num " + ((int)key - (int)Key.NumPad0);
+
+        return key switch
+        {
+            Key.PrintScreen => "PrtScn",
+            Key.Return => "Enter",
+            Key.Escape => "Esc",
+            Key.Back => "Backspace",
+            Key.Capital => "Caps Lock",
+            Key.Prior => "Page Up",
+            Key.Next => "Page Down",
+            Key.OemPlus => "+",
+            Key.OemMinus => "-",
+            Key.Space => "Space",
+            _ => key.ToString()
+        };
     }
 
     private void UpdateHotkeyLabels()
     {
+        var region = FormatHotkey(Enum.Parse<Key>(_hotkeySettings.RegionKey), (ModifierKeys)_hotkeySettings.RegionModifiers);
+        var screen = FormatHotkey(Enum.Parse<Key>(_hotkeySettings.FullScreenKey), (ModifierKeys)_hotkeySettings.FullScreenModifiers);
         if (RegionHotkeyBox is not null)
-            RegionHotkeyBox.Text = FormatHotkey(Enum.Parse<Key>(_hotkeySettings.RegionKey), (ModifierKeys)_hotkeySettings.RegionModifiers);
+            RegionHotkeyBox.Text = region;
         if (FullScreenHotkeyBox is not null)
-            FullScreenHotkeyBox.Text = FormatHotkey(Enum.Parse<Key>(_hotkeySettings.FullScreenKey), (ModifierKeys)_hotkeySettings.FullScreenModifiers);
+            FullScreenHotkeyBox.Text = screen;
+        if (RegionHotkeyHint is not null)
+            RegionHotkeyHint.Text = region;
+        if (ScreenHotkeyHint is not null)
+            ScreenHotkeyHint.Text = screen;
     }
 
-    private void SaveHotkeys_Click(object sender, RoutedEventArgs e)
+    private void HotkeyBox_GotFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender == RegionHotkeyBox)
+            RegionHotkeyCaption.Text = "Press a combination";
+        else
+            ScreenHotkeyCaption.Text = "Press a combination";
+    }
+
+    private void HotkeyBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender == RegionHotkeyBox)
+            RegionHotkeyCaption.Text = "Region";
+        else
+            ScreenHotkeyCaption.Text = "Full screen";
+    }
+
+    private void CommitHotkeys()
     {
         var candidate = _hotkeySettings.Copy();
-        string? error = null;
-        if (_hotkeyManager is null || !_hotkeyManager.TryRegister(candidate, out error))
+        if (_hotkeyManager is null || !_hotkeyManager.TryRegister(candidate, out var error))
         {
             StatusText.Text = $"Shortcut unavailable: {error ?? "window is not ready"}";
             _hotkeyManager?.TryRegister(_activeHotkeySettings, out _);
+            _hotkeySettings = _activeHotkeySettings.Copy();
+            UpdateHotkeyLabels();
             return;
         }
 
@@ -248,11 +301,13 @@ public partial class MainWindow : Window
             candidate.Save();
             _hotkeySettings = candidate;
             _activeHotkeySettings = candidate.Copy();
-            StatusText.Text = error is null ? "Keyboard shortcuts saved" : $"Shortcuts saved with warning: {error}";
+            StatusText.Text = error is null ? "Shortcut saved" : $"Shortcut saved  ·  {error}";
         }
         catch (Exception ex)
         {
             _hotkeyManager.TryRegister(_activeHotkeySettings, out _);
+            _hotkeySettings = _activeHotkeySettings.Copy();
+            UpdateHotkeyLabels();
             StatusText.Text = "Couldn't save shortcuts";
             System.Windows.MessageBox.Show(ex.Message, "Shortcut settings error",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
@@ -263,6 +318,6 @@ public partial class MainWindow : Window
     {
         _hotkeySettings = new HotkeySettings();
         UpdateHotkeyLabels();
-        SaveHotkeys_Click(sender, e);
+        CommitHotkeys();
     }
 }
