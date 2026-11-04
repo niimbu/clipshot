@@ -289,9 +289,16 @@ public partial class ScreenshotEditorWindow : Window
         }
         else
         {
-            Canvas.SetLeft(shape, rect.Left); Canvas.SetTop(shape, rect.Top);
-            shape.Width = rect.Width; shape.Height = rect.Height;
-            if (shape is Path arrow) arrow.Data = BuildArrowGeometry(_start, end);
+            if (shape is Path arrow)
+            {
+                Canvas.SetLeft(shape, 0); Canvas.SetTop(shape, 0);
+                arrow.Data = BuildArrowGeometry(_start, end);
+            }
+            else
+            {
+                Canvas.SetLeft(shape, rect.Left); Canvas.SetTop(shape, rect.Top);
+                shape.Width = rect.Width; shape.Height = rect.Height;
+            }
         }
         AnnotationCanvas.Children.Add(shape);
     }
@@ -314,6 +321,7 @@ public partial class ScreenshotEditorWindow : Window
         }
         else if (_previewShape is Path arrow)
         {
+            Canvas.SetLeft(arrow, 0); Canvas.SetTop(arrow, 0);
             arrow.Data = BuildArrowGeometry(_start, end);
         }
         else
@@ -369,7 +377,7 @@ public partial class ScreenshotEditorWindow : Window
             _eraseChanged = true;
         }
         var hitStrokes = AnnotationCanvas.Strokes.Where(stroke =>
-            stroke.HitTest(new[] { point }, radius).Count > 0).ToArray();
+            stroke.HitTest(point, radius * 2)).ToArray();
         foreach (var stroke in hitStrokes)
         {
             AnnotationCanvas.Strokes.Remove(stroke);
