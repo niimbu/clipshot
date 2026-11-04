@@ -33,7 +33,7 @@
                 <Grid x:Name="PreviewSurface" Background="#FFF9F2">
                     <Image x:Name="PreviewImage" Stretch="Fill" HorizontalAlignment="Left" VerticalAlignment="Top"/>
                     <InkCanvas x:Name="AnnotationCanvas" Background="Transparent" EditingMode="Ink"
-                               DefaultDrawingAttributes="{x:Null}" MouseLeftButtonDown="AnnotationCanvas_MouseLeftButtonDown"
+                               MouseLeftButtonDown="AnnotationCanvas_MouseLeftButtonDown"
                                MouseMove="AnnotationCanvas_MouseMove" MouseLeftButtonUp="AnnotationCanvas_MouseLeftButtonUp"
                                StrokeCollected="AnnotationCanvas_StrokeCollected"/>
                 </Grid>
