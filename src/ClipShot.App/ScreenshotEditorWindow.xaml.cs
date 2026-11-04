@@ -34,6 +34,7 @@ public partial class ScreenshotEditorWindow : Window
     private readonly Stack<BitmapSource> _redo = new();
     private int _stepNumber = 1;
     private bool _drawing;
+    private bool _eraseChanged;
 
     public bool WasCopied { get; private set; }
     public bool WasSaved { get; private set; }
@@ -57,7 +58,7 @@ public partial class ScreenshotEditorWindow : Window
         AnnotationCanvas.EditingMode = tool switch
         {
             EditorTool.Pen or EditorTool.Highlight => InkCanvasEditingMode.Ink,
-            EditorTool.Erase => InkCanvasEditingMode.EraseByStroke,
+            EditorTool.Erase => InkCanvasEditingMode.None,
             EditorTool.Select => InkCanvasEditingMode.Select,
             _ => InkCanvasEditingMode.None
         };
@@ -162,10 +163,20 @@ public partial class ScreenshotEditorWindow : Window
 
     private void AnnotationCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (_tool is EditorTool.Pen or EditorTool.Highlight or EditorTool.Erase)
+        if (_tool is EditorTool.Pen or EditorTool.Highlight)
         {
             _beforeAction = RenderAnnotatedImage();
             _drawing = true;
+            return;
+        }
+        if (_tool == EditorTool.Erase)
+        {
+            _beforeAction = RenderAnnotatedImage();
+            _drawing = true;
+            _eraseChanged = false;
+            EraseAt(e.GetPosition(AnnotationCanvas));
+            AnnotationCanvas.CaptureMouse();
+            e.Handled = true;
             return;
         }
         _start = e.GetPosition(AnnotationCanvas);
@@ -223,17 +234,33 @@ public partial class ScreenshotEditorWindow : Window
 
     private void AnnotationCanvas_MouseMove(object sender, MouseEventArgs e)
     {
-        if (_drawing && _previewShape is not null)
-            UpdateShape(e.GetPosition(AnnotationCanvas));
+        if (!_drawing) return;
+        var position = e.GetPosition(AnnotationCanvas);
+        if (_tool == EditorTool.Erase)
+        {
+            EraseAt(position);
+            e.Handled = true;
+        }
+        else if (_previewShape is not null)
+            UpdateShape(position);
     }
 
     private void AnnotationCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (!_drawing) return;
-        if (_tool is EditorTool.Pen or EditorTool.Highlight or EditorTool.Erase)
+        if (_tool is EditorTool.Pen or EditorTool.Highlight)
         {
             _drawing = false;
             if (_beforeAction is not null) SaveUndoPointFrom(_beforeAction);
+            return;
+        }
+        if (_tool == EditorTool.Erase)
+        {
+            AnnotationCanvas.ReleaseMouseCapture();
+            _drawing = false;
+            if (_beforeAction is not null && _eraseChanged) SaveUndoPointFrom(_beforeAction);
+            _eraseChanged = false;
+            e.Handled = true;
             return;
         }
         if (_previewShape is null) return;
@@ -264,19 +291,7 @@ public partial class ScreenshotEditorWindow : Window
         {
             Canvas.SetLeft(shape, rect.Left); Canvas.SetTop(shape, rect.Top);
             shape.Width = rect.Width; shape.Height = rect.Height;
-            if (shape is Polygon arrow)
-            {
-                arrow.Points = new PointCollection
-                {
-                    new Point(0, 0), new Point(rect.Width - 12, rect.Height / 2),
-                    new Point(rect.Width - 18, rect.Height / 2 - 7),
-                    new Point(rect.Width, rect.Height / 2),
-                    new Point(rect.Width - 18, rect.Height / 2 + 7),
-                    new Point(rect.Width - 12, rect.Height / 2 + 3)
-                };
-                arrow.RenderTransform = new RotateTransform(Math.Atan2(end.Y - _start.Y, end.X - _start.X) * 180 / Math.PI,
-                    rect.Width / 2, rect.Height / 2);
-            }
+            if (shape is Path arrow) arrow.Data = BuildArrowGeometry(_start, end);
         }
         AnnotationCanvas.Children.Add(shape);
     }
@@ -284,7 +299,7 @@ public partial class ScreenshotEditorWindow : Window
     private static Shape CreateShape(EditorTool tool) => tool switch
     {
         EditorTool.Line => new Line { Stroke = Brushes.Red, StrokeThickness = 3 },
-        EditorTool.Arrow => new Polygon { Fill = Brushes.Red },
+        EditorTool.Arrow => new Path { Stroke = Brushes.Red, StrokeThickness = 3, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Fill = Brushes.Red },
         EditorTool.Ellipse => new Ellipse { Stroke = Brushes.Red, StrokeThickness = 3, Fill = Brushes.Transparent },
         _ => new Rectangle { Stroke = Brushes.Red, StrokeThickness = 3, Fill = Brushes.Transparent }
     };
@@ -297,11 +312,68 @@ public partial class ScreenshotEditorWindow : Window
         {
             line.X1 = _start.X; line.Y1 = _start.Y; line.X2 = end.X; line.Y2 = end.Y;
         }
+        else if (_previewShape is Path arrow)
+        {
+            arrow.Data = BuildArrowGeometry(_start, end);
+        }
         else
         {
             Canvas.SetLeft(_previewShape, rect.Left); Canvas.SetTop(_previewShape, rect.Top);
             _previewShape.Width = Math.Max(1, rect.Width);
             _previewShape.Height = Math.Max(1, rect.Height);
+        }
+    }
+
+    private static Geometry BuildArrowGeometry(Point start, Point end)
+    {
+        double dx = end.X - start.X, dy = end.Y - start.Y;
+        double length = Math.Sqrt(dx * dx + dy * dy);
+        if (length < 1) return Geometry.Empty;
+        double ux = dx / length, uy = dy / length;
+        double headLength = Math.Min(22, Math.Max(12, length * 0.28));
+        double halfWidth = headLength * 0.55;
+        var basePoint = new Point(end.X - ux * headLength, end.Y - uy * headLength);
+        double px = -uy * halfWidth, py = ux * halfWidth;
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(start, false, false);
+            ctx.LineTo(end, true, false);
+            ctx.BeginFigure(new Point(basePoint.X + px, basePoint.Y + py), true, true);
+            ctx.LineTo(end, true, false);
+            ctx.LineTo(new Point(basePoint.X - px, basePoint.Y - py), true, false);
+        }
+        geometry.Freeze();
+        return geometry;
+    }
+
+    private void EraseAt(Point point)
+    {
+        const double radius = 14;
+        var hitElements = AnnotationCanvas.Children.Cast<UIElement>()
+            .Where(element => element is Shape || element is TextBlock || element is Border)
+            .Where(element =>
+            {
+                var bounds = VisualTreeHelper.GetDescendantBounds(element);
+                double left = Canvas.GetLeft(element), top = Canvas.GetTop(element);
+                if (double.IsNaN(left)) left = 0;
+                if (double.IsNaN(top)) top = 0;
+                var hitBounds = new Rect(left + bounds.Left, top + bounds.Top,
+                    Math.Max(bounds.Width, 1), Math.Max(bounds.Height, 1));
+                hitBounds.Inflate(radius, radius);
+                return hitBounds.Contains(point);
+            }).ToArray();
+        foreach (var element in hitElements)
+        {
+            AnnotationCanvas.Children.Remove(element);
+            _eraseChanged = true;
+        }
+        var hitStrokes = AnnotationCanvas.Strokes.Where(stroke =>
+            stroke.HitTest(new[] { point }, radius).Count > 0).ToArray();
+        foreach (var stroke in hitStrokes)
+        {
+            AnnotationCanvas.Strokes.Remove(stroke);
+            _eraseChanged = true;
         }
     }
 
