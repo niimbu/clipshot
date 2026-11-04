@@ -90,6 +90,11 @@ public partial class ScreenshotEditorWindow : Window
         { Redo_Click(this, new RoutedEventArgs()); e.Handled = true; }
         else if (e.Key == Key.Delete)
         { DeleteSelection(); e.Handled = true; }
+        else if (e.Key == Key.Space && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            CopyAndClose();
+            e.Handled = true;
+        }
     }
 
     private void DeleteSelection_Click(object sender, RoutedEventArgs e) => DeleteSelection();
@@ -464,7 +469,9 @@ public partial class ScreenshotEditorWindow : Window
         return dialog.ShowDialog() == true ? input.Text : null;
     }
 
-    private void Copy_Click(object sender, RoutedEventArgs e)
+    private void Copy_Click(object sender, RoutedEventArgs e) => CopyAndClose();
+
+    private void CopyAndClose()
     {
         try
         {
@@ -473,7 +480,10 @@ public partial class ScreenshotEditorWindow : Window
             WasCopied = true;
             Close();
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Clipboard error", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Clipboard error", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void Save_Click(object sender, RoutedEventArgs e)
