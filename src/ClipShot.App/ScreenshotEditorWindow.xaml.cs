@@ -18,7 +18,8 @@ using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Button = System.Windows.Controls.Button;
 using Clipboard = System.Windows.Clipboard;
 using MessageBox = System.Windows.MessageBox;
-using Cursors = System.Windows.Input.Cursors;\nusing KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using Cursors = System.Windows.Input.Cursors;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace ClipShot;
 
@@ -56,7 +57,8 @@ public partial class ScreenshotEditorWindow : Window
         AnnotationCanvas.EditingMode = tool switch
         {
             EditorTool.Pen or EditorTool.Highlight => InkCanvasEditingMode.Ink,
-            EditorTool.Erase => InkCanvasEditingMode.EraseByStroke,\n            EditorTool.Select => InkCanvasEditingMode.Select,
+            EditorTool.Erase => InkCanvasEditingMode.EraseByStroke,
+            EditorTool.Select => InkCanvasEditingMode.Select,
             _ => InkCanvasEditingMode.None
         };
         AnnotationCanvas.Cursor = tool is EditorTool.Blur or EditorTool.Pixelate ? Cursors.Cross : Cursors.Pen;
@@ -73,7 +75,31 @@ public partial class ScreenshotEditorWindow : Window
 
     private void Pen_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Pen);
     private void Highlight_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Highlight);
-    private void Erase_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Erase);\n    private void Select_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Select);\n\n    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)\n    {\n        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.Z && (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)\n        { Redo_Click(this, new RoutedEventArgs()); e.Handled = true; }\n        else if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.Z)\n        { Undo_Click(this, new RoutedEventArgs()); e.Handled = true; }\n        else if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.Y)\n        { Redo_Click(this, new RoutedEventArgs()); e.Handled = true; }\n        else if (e.Key == Key.Delete)\n        { DeleteSelection(); e.Handled = true; }\n    }\n\n    private void DeleteSelection_Click(object sender, RoutedEventArgs e) => DeleteSelection();\n\n    private void DeleteSelection()\n    {\n        if (AnnotationCanvas.GetSelectedStrokes().Count == 0 && AnnotationCanvas.GetSelectedElements().Count == 0) return;\n        SaveUndoPoint();\n        AnnotationCanvas.GetSelectedStrokes().Clear();\n        foreach (var element in AnnotationCanvas.GetSelectedElements().Cast<UIElement>().ToArray())\n            AnnotationCanvas.Children.Remove(element);\n    }
+    private void Erase_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Erase);
+    private void Select_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Select);
+
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.Z && (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+        { Redo_Click(this, new RoutedEventArgs()); e.Handled = true; }
+        else if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.Z)
+        { Undo_Click(this, new RoutedEventArgs()); e.Handled = true; }
+        else if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.Y)
+        { Redo_Click(this, new RoutedEventArgs()); e.Handled = true; }
+        else if (e.Key == Key.Delete)
+        { DeleteSelection(); e.Handled = true; }
+    }
+
+    private void DeleteSelection_Click(object sender, RoutedEventArgs e) => DeleteSelection();
+
+    private void DeleteSelection()
+    {
+        if (AnnotationCanvas.GetSelectedStrokes().Count == 0 && AnnotationCanvas.GetSelectedElements().Count == 0) return;
+        SaveUndoPoint();
+        AnnotationCanvas.GetSelectedStrokes().Clear();
+        foreach (var element in AnnotationCanvas.GetSelectedElements().Cast<UIElement>().ToArray())
+            AnnotationCanvas.Children.Remove(element);
+    }
     private void Arrow_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Arrow);
     private void Line_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Line);
     private void Rectangle_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Rectangle);
