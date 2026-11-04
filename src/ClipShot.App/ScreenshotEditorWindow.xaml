@@ -50,8 +50,8 @@
                 <Grid x:Name="PreviewSurface" Background="#FFF9F2">
                     <Image x:Name="PreviewImage" Stretch="Fill" HorizontalAlignment="Left" VerticalAlignment="Top"/>
                     <InkCanvas x:Name="AnnotationCanvas" Background="Transparent" EditingMode="Ink"
-                               MouseLeftButtonDown="AnnotationCanvas_MouseLeftButtonDown"
-                               MouseMove="AnnotationCanvas_MouseMove" MouseLeftButtonUp="AnnotationCanvas_MouseLeftButtonUp"
+                               PreviewMouseLeftButtonDown="AnnotationCanvas_MouseLeftButtonDown"
+                               PreviewMouseMove="AnnotationCanvas_MouseMove" PreviewMouseLeftButtonUp="AnnotationCanvas_MouseLeftButtonUp"
                                StrokeCollected="AnnotationCanvas_StrokeCollected"/>
                 </Grid>
             </ScrollViewer>
