@@ -1,0 +1,162 @@
+<Window x:Class="ClipShot.ScreenshotEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ClipShot"
+        Width="980"
+        Height="680"
+        MinWidth="640"
+        MinHeight="420"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource CanvasBrush}"
+        FontFamily="Segoe UI"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Window.Resources>
+        <Style x:Key="EditorToolButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="MinWidth" Value="34"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="1"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource InkBrush}"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource HoverBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource HoverBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PressBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource PressBrush}"/>
+                </Trigger>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource FocusBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="EditorPrimaryToolButton" TargetType="Button" BasedOn="{StaticResource EditorToolButton}">
+            <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimaryHoverBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryHoverBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#000000"/>
+                    <Setter Property="BorderBrush" Value="#000000"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="EditorToolDivider" TargetType="Border">
+            <Setter Property="Width" Value="1"/>
+            <Setter Property="Height" Value="18"/>
+            <Setter Property="Background" Value="{StaticResource LineBrush}"/>
+            <Setter Property="Margin" Value="5,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="14">
+        <Border DockPanel.Dock="Top"
+                Background="{StaticResource CardBrush}"
+                BorderBrush="{StaticResource LineBrush}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="6,5"
+                Margin="0,0,0,10">
+            <DockPanel LastChildFill="False">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Click="Pen_Click" ToolTip="Pen" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Pen">
+                        <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Highlight_Click" ToolTip="Highlight" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Highlight">
+                        <TextBlock Text="&#xEA3F;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Arrow_Click" ToolTip="Arrow" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Arrow">
+                        <TextBlock Text="&#xE72A;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Line_Click" ToolTip="Line" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Line">
+                        <TextBlock Text="&#xEADF;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Rectangle_Click" ToolTip="Rectangle" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Rectangle">
+                        <TextBlock Text="&#xE739;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Ellipse_Click" ToolTip="Ellipse" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Ellipse">
+                        <TextBlock Text="&#xEA3A;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Text_Click" ToolTip="Text" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Text">
+                        <TextBlock Text="&#xE8D2;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Number_Click" ToolTip="Numbered step" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Numbered step">
+                        <TextBlock Text="&#xE8EF;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Border Style="{StaticResource EditorToolDivider}"/>
+                    <Button Click="Blur_Click" ToolTip="Blur" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Blur">
+                        <TextBlock Text="&#xE9F5;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Pixelate_Click" ToolTip="Pixelate" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Pixelate">
+                        <TextBlock Text="&#xE9F9;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Erase_Click" ToolTip="Erase" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Erase">
+                        <TextBlock Text="&#xE75C;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Select_Click" ToolTip="Select" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Select">
+                        <TextBlock Text="&#xE762;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="DeleteSelection_Click" ToolTip="Delete selection" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Delete selection">
+                        <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Border Style="{StaticResource EditorToolDivider}"/>
+                    <Button Click="Undo_Click" ToolTip="Undo (Ctrl+Z)" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Undo">
+                        <TextBlock Text="&#xE7A7;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Redo_Click" ToolTip="Redo (Ctrl+Y)" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Redo">
+                        <TextBlock Text="&#xE7A6;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                    <TextBlock Text="Space copies and closes"
+                               Foreground="{StaticResource MutedBrush}"
+                               FontSize="11"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"/>
+                    <Button Click="Copy_Click" ToolTip="Copy and close (Space)" Style="{StaticResource EditorPrimaryToolButton}" AutomationProperties.Name="Copy">
+                        <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Save_Click" ToolTip="Save PNG" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Save PNG">
+                        <TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                    <Button Click="Close_Click" ToolTip="Close" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Close editor">
+                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets"/>
+                    </Button>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Border Background="#E5E7EB"
+                BorderBrush="{StaticResource LineBrush}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="8">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                <Grid x:Name="PreviewSurface" Background="White" HorizontalAlignment="Left" VerticalAlignment="Top">
+                    <Image x:Name="PreviewImage" Stretch="Fill" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                    <InkCanvas x:Name="AnnotationCanvas"
+                               Background="Transparent"
+                               EditingMode="Ink"
+                               PreviewMouseLeftButtonDown="AnnotationCanvas_MouseLeftButtonDown"
+                               PreviewMouseMove="AnnotationCanvas_MouseMove"
+                               PreviewMouseLeftButtonUp="AnnotationCanvas_MouseLeftButtonUp"
+                               StrokeCollected="AnnotationCanvas_StrokeCollected"/>
+                </Grid>
+            </ScrollViewer>
+        </Border>
+    </DockPanel>
+</Window>

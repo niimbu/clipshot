@@ -2,7 +2,10 @@ using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using Key = System.Windows.Input.Key;
 using ModifierKeys = System.Windows.Input.ModifierKeys;
+using MessageBox = System.Windows.MessageBox;
+using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
@@ -15,10 +18,12 @@ namespace ClipShot;
 public partial class MainWindow : Window
 {
     private readonly CaptureService _captureService = new();
+    private readonly DispatcherTimer _updateCheckTimer = new() { Interval = TimeSpan.FromHours(6) };
     private HotkeySettings _hotkeySettings = new();
     private HotkeySettings _activeHotkeySettings = new();
     private GlobalHotkeyManager? _hotkeyManager;
     private HwndSource? _source;
+    private Uri? _latestReleaseUri;
 
     public MainWindow()
     {
@@ -26,8 +31,130 @@ public partial class MainWindow : Window
         _hotkeySettings = HotkeySettings.Load();
         _activeHotkeySettings = _hotkeySettings.Copy();
         UpdateHotkeyLabels();
+        StartWithWindowsCheckBox.IsChecked = StartupManager.IsEnabled();
         SourceInitialized += MainWindow_SourceInitialized;
-        Closed += (_, _) => _hotkeyManager?.Dispose();
+        Loaded += MainWindow_Loaded;
+        _updateCheckTimer.Tick += async (_, _) => await CheckForUpdatesAsync();
+        _updateCheckTimer.Start();
+        Closed += (_, _) =>
+        {
+            _updateCheckTimer.Stop();
+            _hotkeyManager?.Dispose();
+        };
+    }
+
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e) => await CheckForUpdatesAsync();
+
+    private async void CheckForUpdates_Click(object sender, RoutedEventArgs e) =>
+        await CheckForUpdatesAsync(manual: true);
+
+    private async Task CheckForUpdatesAsync(bool manual = false)
+    {
+        if (manual)
+        {
+            CheckForUpdatesButton.IsEnabled = false;
+            CheckForUpdatesButton.Content = "Checking…";
+            StatusText.Text = "Checking for updates…";
+        }
+
+        try
+        {
+            var release = await UpdateChecker.GetLatestReleaseAsync();
+            if (release is null)
+            {
+                _latestReleaseUri = null;
+                UpdateNoticePanel.Visibility = Visibility.Collapsed;
+                if (manual)
+                    StatusText.Text = "Couldn't find a published ClipShot release to check.";
+                return;
+            }
+
+            var currentVersion = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0);
+            if (release.Version > currentVersion)
+            {
+                _latestReleaseUri = release.Url;
+                UpdateNoticeTitle.Text = $"ClipShot {release.Version} is available";
+                UpdateNoticeDetails.Text = $"You're using version {currentVersion}. Update now to install the latest version.";
+                UpdateNoticePanel.Visibility = Visibility.Visible;
+                if (manual)
+                    StatusText.Text = $"Update found: ClipShot {release.Version} is available.";
+            }
+            else
+            {
+                _latestReleaseUri = release.Url;
+                UpdateNoticePanel.Visibility = Visibility.Collapsed;
+                if (manual)
+                    StatusText.Text = $"You're up to date · ClipShot {currentVersion}.";
+            }
+        }
+        catch (Exception ex)
+        {
+            if (manual)
+            {
+                StatusText.Text = "Update check failed. Check your internet connection and try again.";
+                MessageBox.Show(this, $"ClipShot couldn't check for updates.\n\n{ex.Message}",
+                    "Update check failed", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        finally
+        {
+            if (manual)
+            {
+                CheckForUpdatesButton.IsEnabled = true;
+                CheckForUpdatesButton.Content = "Check for updates";
+            }
+        }
+    }
+
+    private async void UpdateNow_Click(object sender, RoutedEventArgs e)
+    {
+        if (_latestReleaseUri is null)
+            return;
+
+        UpdateNowButton.IsEnabled = false;
+        UpdateNowButton.Content = "Downloading…";
+        UpdateNoticeDetails.Text = "Downloading and preparing the update. ClipShot will restart when it is ready.";
+        try
+        {
+            var release = await UpdateChecker.GetLatestReleaseAsync();
+            if (release is null)
+                throw new InvalidOperationException("The latest release executable could not be found.");
+
+            await UpdateInstaller.DownloadAndRestartAsync(release.ExecutableUrl);
+            System.Windows.Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            UpdateNowButton.IsEnabled = true;
+            UpdateNowButton.Content = "Update now";
+            UpdateNoticeDetails.Text = "The update could not be installed. You can download it from the release page.";
+            MessageBox.Show("ClipShot could not install the update.\n\n" + ex.Message, "Update failed",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            Process.Start(new ProcessStartInfo(_latestReleaseUri.AbsoluteUri) { UseShellExecute = true });
+        }
+    }
+
+    private void StartWithWindows_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded || StartWithWindowsCheckBox.IsChecked is not bool enabled)
+            return;
+
+        try
+        {
+            StartupManager.SetEnabled(enabled);
+            StatusText.Text = enabled ? "ClipShot will start when you sign in" : "ClipShot will not start automatically";
+        }
+        catch (Exception ex)
+        {
+            StartWithWindowsCheckBox.Checked -= StartWithWindows_Changed;
+            StartWithWindowsCheckBox.Unchecked -= StartWithWindows_Changed;
+            StartWithWindowsCheckBox.IsChecked = !enabled;
+            StartWithWindowsCheckBox.Checked += StartWithWindows_Changed;
+            StartWithWindowsCheckBox.Unchecked += StartWithWindows_Changed;
+            StatusText.Text = "Couldn't update Windows startup setting";
+            MessageBox.Show($"ClipShot couldn't change the Windows startup setting.\n\n{ex.Message}", "Startup setting error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void MainWindow_SourceInitialized(object? sender, EventArgs e)
@@ -69,14 +196,13 @@ public partial class MainWindow : Window
         try
         {
             var bitmap = _captureService.CapturePrimaryScreen();
-            System.Windows.Clipboard.SetImage(bitmap);
-            StatusText.Text = $"Copied full screen  ·  {bitmap.PixelWidth} × {bitmap.PixelHeight}";
+            OpenScreenshotEditor(bitmap);
         }
         catch (Exception ex)
         {
             StatusText.Text = "Capture failed";
-            System.Windows.MessageBox.Show($"ClipShot couldn't capture the screen.\n\n{ex.Message}", "Capture error",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            MessageBox.Show($"ClipShot couldn't capture the screen.\n\n{ex.Message}", "Capture error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -89,20 +215,30 @@ public partial class MainWindow : Window
         try
         {
             var bitmap = _captureService.CapturePrimaryScreen();
-            System.Windows.Clipboard.SetImage(bitmap);
-            StatusText.Text = $"Copied full screen  ·  {bitmap.PixelWidth} × {bitmap.PixelHeight}";
+            OpenScreenshotEditor(bitmap);
         }
         catch (Exception ex)
         {
             StatusText.Text = "Capture failed";
-            System.Windows.MessageBox.Show($"ClipShot couldn't capture the screen.\n\n{ex.Message}", "Capture error",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            MessageBox.Show($"ClipShot couldn't capture the screen.\n\n{ex.Message}", "Capture error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
             if (restoreWindow)
                 Show();
         }
+    }
+
+    private void OpenScreenshotEditor(BitmapSource bitmap)
+    {
+        var editor = new ScreenshotEditorWindow(bitmap) { Owner = this };
+        editor.ShowDialog();
+        StatusText.Text = editor.WasCopied
+            ? $"Copied screenshot  ·  {bitmap.PixelWidth} × {bitmap.PixelHeight}"
+            : editor.WasSaved
+                ? $"Saved screenshot  ·  {bitmap.PixelWidth} × {bitmap.PixelHeight}"
+                : "Screenshot editor closed";
     }
 
     private void SaveScreen_Click(object sender, RoutedEventArgs e)
@@ -128,8 +264,8 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             StatusText.Text = "Save failed";
-            System.Windows.MessageBox.Show($"ClipShot couldn't save the screenshot.\n\n{ex.Message}", "Save error",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            MessageBox.Show($"ClipShot couldn't save the screenshot.\n\n{ex.Message}", "Save error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -154,25 +290,15 @@ public partial class MainWindow : Window
             var selector = new RegionSelectionWindow(screenshot);
             var selected = selector.ShowDialog();
             if (selected == true && selector.SelectedImage is { } region)
-            {
-                if (selector.WasSaved)
-                    StatusText.Text = $"Saved region  ·  {region.PixelWidth} × {region.PixelHeight}";
-                else
-                {
-                    System.Windows.Clipboard.SetImage(region);
-                    StatusText.Text = $"Copied region  ·  {region.PixelWidth} × {region.PixelHeight}";
-                }
-            }
+                OpenScreenshotEditor(region);
             else
-            {
                 StatusText.Text = "Region capture cancelled";
-            }
         }
         catch (Exception ex)
         {
             StatusText.Text = "Region capture failed";
-            System.Windows.MessageBox.Show($"ClipShot couldn't capture that region.\n\n{ex.Message}", "Region capture error",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            MessageBox.Show($"ClipShot couldn't capture that region.\n\n{ex.Message}", "Region capture error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
@@ -317,8 +443,8 @@ public partial class MainWindow : Window
             _hotkeySettings = _activeHotkeySettings.Copy();
             UpdateHotkeyLabels();
             StatusText.Text = "Couldn't save shortcuts";
-            System.Windows.MessageBox.Show(ex.Message, "Shortcut settings error",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, "Shortcut settings error",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

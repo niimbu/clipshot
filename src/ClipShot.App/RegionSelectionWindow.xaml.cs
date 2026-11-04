@@ -1,14 +1,13 @@
-using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 using Cursors = System.Windows.Input.Cursors;
-using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
-using Rectangle = System.Windows.Shapes.Rectangle;
+using System.Windows.Shapes;
 using Point = System.Windows.Point;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using Rectangle = System.Windows.Shapes.Rectangle;
 
 namespace ClipShot;
 
@@ -19,7 +18,6 @@ public partial class RegionSelectionWindow : Window
     private bool _isSelecting;
 
     public BitmapSource? SelectedImage { get; private set; }
-    public bool WasSaved { get; private set; }
 
     public RegionSelectionWindow(BitmapSource screenshot)
     {
@@ -67,7 +65,7 @@ public partial class RegionSelectionWindow : Window
         if (bounds.Width < 1 && bounds.Height < 1)
             return;
 
-        UpdateChrome(bounds, committed: false);
+        UpdateChrome(bounds);
     }
 
     private void SelectionCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -90,16 +88,11 @@ public partial class RegionSelectionWindow : Window
         var cropped = new CroppedBitmap(_screenshot, pixels);
         cropped.Freeze();
         SelectedImage = cropped;
-        UpdateChrome(bounds, committed: true);
-        Cursor = Cursors.Arrow;
+        // Hand the crop to the annotation editor immediately.
+        DialogResult = true;
     }
 
-    private void ActionsBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-    }
-
-    private void UpdateChrome(Rect bounds, bool committed)
+    private void UpdateChrome(Rect bounds)
     {
         var canvasWidth = SelectionCanvas.ActualWidth;
         var canvasHeight = SelectionCanvas.ActualHeight;
@@ -119,41 +112,19 @@ public partial class RegionSelectionWindow : Window
         var pixels = ToPixelRect(bounds);
         SizeText.Text = $"{pixels.Width} × {pixels.Height}";
         SizeBadge.Visibility = Visibility.Visible;
-        ActionsBar.Visibility = committed ? Visibility.Visible : Visibility.Collapsed;
         HintBorder.Visibility = Visibility.Collapsed;
-        PositionFloatingChrome(bounds, canvasWidth, canvasHeight, committed);
+        PositionSizeBadge(bounds, canvasWidth, canvasHeight);
     }
 
-    private void PositionFloatingChrome(Rect bounds, double canvasWidth, double canvasHeight, bool committed)
+    private void PositionSizeBadge(Rect bounds, double canvasWidth, double canvasHeight)
     {
         SizeBadge.UpdateLayout();
         var badgeWidth = SizeBadge.ActualWidth;
         var badgeHeight = SizeBadge.ActualHeight;
         var badgeLeft = Clamp(bounds.Left + (bounds.Width - badgeWidth) / 2, 10, canvasWidth - badgeWidth - 10);
         var badgeTop = bounds.Top - badgeHeight - 10;
-        var badgeInside = badgeTop < 10;
-        if (badgeInside)
-            badgeTop = bounds.Top + 10;
-
-        if (committed)
-        {
-            ActionsBar.UpdateLayout();
-            var barWidth = ActionsBar.ActualWidth;
-            var barHeight = ActionsBar.ActualHeight;
-            var barLeft = Clamp(bounds.Left + (bounds.Width - barWidth) / 2, 10, canvasWidth - barWidth - 10);
-            var barTop = bounds.Bottom + 10;
-            if (barTop + barHeight > canvasHeight - 10)
-                barTop = bounds.Top - barHeight - 10;
-            if (barTop < 10)
-                barTop = Math.Min(bounds.Top + 10, Math.Max(10, canvasHeight - barHeight - 10));
-
-            var barOverlapsBadge = barTop < badgeTop + badgeHeight && barTop + barHeight > badgeTop;
-            if (barOverlapsBadge)
-                badgeTop = Clamp(barTop + barHeight + 8, 10, Math.Max(10, canvasHeight - badgeHeight - 10));
-
-            Canvas.SetLeft(ActionsBar, barLeft);
-            Canvas.SetTop(ActionsBar, barTop);
-        }
+        if (badgeTop < 10)
+            badgeTop = Clamp(bounds.Top + 10, 10, Math.Max(10, canvasHeight - badgeHeight - 10));
 
         Canvas.SetLeft(SizeBadge, badgeLeft);
         Canvas.SetTop(SizeBadge, badgeTop);
@@ -163,7 +134,6 @@ public partial class RegionSelectionWindow : Window
     {
         _isSelecting = false;
         SelectedImage = null;
-        WasSaved = false;
         SelectionRect.Visibility = Visibility.Collapsed;
         SelectionRect.Width = 0;
         SelectionRect.Height = 0;
@@ -172,7 +142,6 @@ public partial class RegionSelectionWindow : Window
         DimRight.Visibility = Visibility.Collapsed;
         DimBottom.Visibility = Visibility.Collapsed;
         SizeBadge.Visibility = Visibility.Collapsed;
-        ActionsBar.Visibility = Visibility.Collapsed;
         HintBorder.Visibility = Visibility.Visible;
         DimFull.Visibility = Visibility.Visible;
         SizeDimFull();
@@ -213,51 +182,6 @@ public partial class RegionSelectionWindow : Window
         return Math.Clamp(value, min, max);
     }
 
-    private void CopySelected_Click(object sender, RoutedEventArgs e)
-    {
-        if (SelectedImage is not null)
-            DialogResult = true;
-    }
-
-    private void SaveSelected_Click(object sender, RoutedEventArgs e)
-    {
-        if (SelectedImage is null)
-            return;
-
-        var dialog = new SaveFileDialog
-        {
-            Title = "Save selected region",
-            Filter = "PNG image (*.png)|*.png",
-            DefaultExt = ".png",
-            AddExtension = true,
-            FileName = $"ClipShot-{DateTime.Now:yyyyMMdd-HHmmss}.png"
-        };
-
-        if (dialog.ShowDialog(this) != true)
-            return;
-
-        try
-        {
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(SelectedImage));
-            using var stream = File.Create(dialog.FileName);
-            encoder.Save(stream);
-            WasSaved = true;
-            DialogResult = true;
-        }
-        catch (Exception ex)
-        {
-            System.Windows.MessageBox.Show(this,
-                $"ClipShot couldn't save the selected region.\n\n{ex.Message}",
-                "Save error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private void CancelSelection_Click(object sender, RoutedEventArgs e)
-    {
-        DialogResult = false;
-    }
-
     private void SelectionCanvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         DialogResult = false;
@@ -269,21 +193,6 @@ public partial class RegionSelectionWindow : Window
         if (e.Key == Key.Escape)
         {
             DialogResult = false;
-            e.Handled = true;
-            return;
-        }
-
-        if (SelectedImage is null)
-            return;
-
-        if (e.Key == Key.Enter)
-        {
-            CopySelected_Click(this, new RoutedEventArgs());
-            e.Handled = true;
-        }
-        else if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control)
-        {
-            SaveSelected_Click(this, new RoutedEventArgs());
             e.Handled = true;
         }
     }

@@ -17,9 +17,11 @@
     <Grid Margin="28,26,28,22">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="22"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="16"/>
+            <RowDefinition Height="18"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="14"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -42,7 +44,32 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="2">
+        <Border x:Name="UpdateNoticePanel"
+                Grid.Row="1"
+                Visibility="Collapsed"
+                Background="#EEF3FF"
+                BorderBrush="#D5E1FF"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="14,12"
+                Margin="0,16,0,0">
+            <DockPanel LastChildFill="True">
+                <Button x:Name="UpdateNowButton"
+                        Content="Update now"
+                        DockPanel.Dock="Right"
+                        Margin="12,0,0,0"
+                        Style="{StaticResource PrimaryButton}"
+                        Padding="14,9"
+                        HorizontalContentAlignment="Center"
+                        Click="UpdateNow_Click"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="UpdateNoticeTitle" Text="A new version is available" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}"/>
+                    <TextBlock x:Name="UpdateNoticeDetails" Text="Update now, or keep using this version." FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="14"/>
@@ -67,7 +94,7 @@
                         </Viewbox>
                     </Border>
                     <TextBlock Grid.Row="1" Text="Region" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}" Margin="0,14,0,0"/>
-                    <TextBlock Grid.Row="2" Text="Drag around the area you want. It is copied when you confirm." TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0" LineHeight="18" MinHeight="36"/>
+                    <TextBlock Grid.Row="2" Text="Drag around the area you want. Annotation tools open next." TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0" LineHeight="18" MinHeight="36"/>
                     <Button Grid.Row="3" Margin="0,16,0,0" Click="CaptureRegion_Click" Style="{StaticResource PrimaryButton}" AutomationProperties.Name="Select region">
                         <DockPanel LastChildFill="True">
                             <TextBlock x:Name="RegionHotkeyHint" DockPanel.Dock="Right" Opacity="0.62" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0,0,0" MaxWidth="130" TextTrimming="CharacterEllipsis"/>
@@ -101,7 +128,7 @@
                                 AutomationProperties.Name="Save screen as PNG"/>
                     </Grid>
                     <TextBlock Grid.Row="1" Text="Full screen" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}" Margin="0,14,0,0"/>
-                    <TextBlock Grid.Row="2" Text="Grab the primary display and copy it to the clipboard." TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0" LineHeight="18" MinHeight="36"/>
+                    <TextBlock Grid.Row="2" Text="Grab the primary display, then annotate, copy, or save." TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0" LineHeight="18" MinHeight="36"/>
                     <Button Grid.Row="3" Margin="0,16,0,0" Click="CaptureScreen_Click" Style="{StaticResource PrimaryButton}" AutomationProperties.Name="Capture screen">
                         <DockPanel LastChildFill="True">
                             <TextBlock x:Name="ScreenHotkeyHint" DockPanel.Dock="Right" Opacity="0.62" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0,0,0" MaxWidth="130" TextTrimming="CharacterEllipsis"/>
@@ -112,9 +139,10 @@
             </Border>
         </Grid>
 
-        <Border Grid.Row="4" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="16" Padding="18,16">
+        <Border Grid.Row="5" Background="{StaticResource CardBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1" CornerRadius="16" Padding="18,16">
             <Grid>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
@@ -154,9 +182,35 @@
                                  LostFocus="HotkeyBox_LostFocus"/>
                     </StackPanel>
                 </Grid>
+                <StackPanel Grid.Row="2" Margin="0,16,0,0">
+                    <CheckBox x:Name="StartWithWindowsCheckBox"
+                              Content="Start ClipShot when I sign in to Windows"
+                              FontSize="12.5"
+                              Foreground="{StaticResource InkBrush}"
+                              Checked="StartWithWindows_Changed"
+                              Unchecked="StartWithWindows_Changed"/>
+                </StackPanel>
             </Grid>
         </Border>
 
-        <TextBlock x:Name="StatusText" Grid.Row="5" Text="Ready" Margin="2,14,2,0" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+        <Grid Grid.Row="6" Margin="2,16,2,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="StatusText" Text="Ready" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+                <TextBlock Text="by niimbu" FontSize="11" Foreground="#A0A4AB" Margin="0,4,0,0"/>
+            </StackPanel>
+            <Button x:Name="CheckForUpdatesButton"
+                    Grid.Column="1"
+                    Content="Check for updates"
+                    Style="{StaticResource SecondaryButton}"
+                    Padding="12,8"
+                    FontSize="12"
+                    VerticalAlignment="Center"
+                    Click="CheckForUpdates_Click"
+                    AutomationProperties.Name="Check for updates"/>
+        </Grid>
     </Grid>
 </Window>
