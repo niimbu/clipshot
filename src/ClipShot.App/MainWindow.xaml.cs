@@ -107,13 +107,28 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e) => await CheckForUpdatesAsync();
 
-    private async Task CheckForUpdatesAsync()
+    private async void CheckForUpdates_Click(object sender, RoutedEventArgs e) =>
+        await CheckForUpdatesAsync(manual: true);
+
+    private async Task CheckForUpdatesAsync(bool manual = false)
     {
+        if (manual)
+        {
+            CheckForUpdatesButton.IsEnabled = false;
+            CheckForUpdatesButton.Content = "Checking…";
+            StatusText.Text = "Checking for updates…";
+        }
+
         try
         {
             var release = await UpdateChecker.GetLatestReleaseAsync();
             if (release is null)
+            {
+                _latestReleaseUri = null;
+                UpdateNoticePanel.Visibility = Visibility.Collapsed;
+                if (manual) StatusText.Text = "Couldn't find a published ClipShot release to check.";
                 return;
+            }
 
             var currentVersion = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0);
             if (release.Version > currentVersion)
@@ -122,15 +137,31 @@ public partial class MainWindow : Window
                 UpdateNoticeTitle.Text = $"ClipShot {release.Version} is available";
                 UpdateNoticeDetails.Text = $"You're using version {currentVersion}. Update now to install the latest version.";
                 UpdateNoticePanel.Visibility = Visibility.Visible;
+                if (manual) StatusText.Text = $"Update found: ClipShot {release.Version} is available.";
             }
             else
             {
+                _latestReleaseUri = release.Url;
                 UpdateNoticePanel.Visibility = Visibility.Collapsed;
+                if (manual) StatusText.Text = $"You're up to date · ClipShot {currentVersion}.";
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Update checks are best-effort and must never interrupt capturing.
+            if (manual)
+            {
+                StatusText.Text = "Update check failed. Check your internet connection and try again.";
+                MessageBox.Show(this, $"ClipShot couldn't check for updates.\n\n{ex.Message}",
+                    "Update check failed", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        finally
+        {
+            if (manual)
+            {
+                CheckForUpdatesButton.IsEnabled = true;
+                CheckForUpdatesButton.Content = "Check for updates";
+            }
         }
     }
 
@@ -214,8 +245,7 @@ public partial class MainWindow : Window
         try
         {
             var bitmap = _captureService.CapturePrimaryScreen();
-            CopyImageToClipboard(bitmap);
-            StatusText.Text = $"Copied full screen · {bitmap.PixelWidth} × {bitmap.PixelHeight}";
+            OpenScreenshotEditor(bitmap);
         }
         catch (Exception ex)
         {
@@ -232,8 +262,7 @@ public partial class MainWindow : Window
         try
         {
             var bitmap = _captureService.CapturePrimaryScreen();
-            CopyImageToClipboard(bitmap);
-            StatusText.Text = $"Copied full screen · {bitmap.PixelWidth} × {bitmap.PixelHeight}";
+            OpenScreenshotEditor(bitmap);
         }
         catch (Exception ex)
         {
@@ -247,12 +276,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private static void CopyImageToClipboard(BitmapSource bitmap)
+    private void OpenScreenshotEditor(BitmapSource bitmap)
     {
-        System.Windows.Clipboard.SetImage(bitmap);
-        System.Windows.Clipboard.Flush();
-        if (!System.Windows.Clipboard.ContainsImage())
-            throw new InvalidOperationException("Windows did not confirm that the screenshot reached the clipboard. Please try copying again.");
+        var editor = new ScreenshotEditorWindow(bitmap);
+        editor.ShowDialog();
+        StatusText.Text = editor.WasCopied
+            ? $"Copied screenshot · {bitmap.PixelWidth} × {bitmap.PixelHeight}"
+            : editor.WasSaved
+                ? $"Saved screenshot · {bitmap.PixelWidth} × {bitmap.PixelHeight}"
+                : "Screenshot editor closed";
     }
 
     private void SaveScreen_Click(object sender, RoutedEventArgs e)
@@ -297,13 +329,7 @@ public partial class MainWindow : Window
             var selected = selector.ShowDialog();
             if (selected == true && selector.SelectedImage is { } region)
             {
-                var editor = new ScreenshotEditorWindow(region);
-                editor.ShowDialog();
-                StatusText.Text = editor.WasCopied
-                    ? $"Copied edited capture · {region.PixelWidth} × {region.PixelHeight}"
-                    : editor.WasSaved
-                        ? $"Saved capture · {region.PixelWidth} × {region.PixelHeight}"
-                        : "Capture editor closed";
+                OpenScreenshotEditor(region);
             }
             else StatusText.Text = "Region capture cancelled";
         }
