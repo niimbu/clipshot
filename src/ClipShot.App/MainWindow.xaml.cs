@@ -287,10 +287,18 @@ public partial class MainWindow : Window
     private void CommitHotkeys()
     {
         var candidate = _hotkeySettings.Copy();
-        if (_hotkeyManager is null || !_hotkeyManager.TryRegister(candidate, out var error))
+        if (_hotkeyManager is null)
         {
-            StatusText.Text = $"Shortcut unavailable: {error ?? "window is not ready"}";
-            _hotkeyManager?.TryRegister(_activeHotkeySettings, out _);
+            StatusText.Text = "Shortcut unavailable: window is not ready";
+            _hotkeySettings = _activeHotkeySettings.Copy();
+            UpdateHotkeyLabels();
+            return;
+        }
+
+        if (!_hotkeyManager.TryRegister(candidate, out var error))
+        {
+            StatusText.Text = $"Shortcut unavailable: {error ?? "registration failed"}";
+            _hotkeyManager.TryRegister(_activeHotkeySettings, out _);
             _hotkeySettings = _activeHotkeySettings.Copy();
             UpdateHotkeyLabels();
             return;
