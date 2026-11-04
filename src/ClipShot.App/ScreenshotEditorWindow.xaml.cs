@@ -362,7 +362,9 @@ public partial class ScreenshotEditorWindow : Window
             .Where(element => element is Shape || element is TextBlock || element is Border)
             .Where(element =>
             {
-                var bounds = VisualTreeHelper.GetDescendantBounds(element);
+                var bounds = element is Shape shape
+                    ? shape.RenderedGeometry.Bounds
+                    : new Rect(0, 0, element.RenderSize.Width, element.RenderSize.Height);
                 double left = Canvas.GetLeft(element), top = Canvas.GetTop(element);
                 if (double.IsNaN(left)) left = 0;
                 if (double.IsNaN(top)) top = 0;
