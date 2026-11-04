@@ -29,17 +29,64 @@ jobs:
       - name: Publish self-contained Windows app
         run: dotnet publish src/ClipShot.App/ClipShot.App.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false --output publish/win-x64
 
-      - name: Prepare release assets
+      # Configure WINDOWS_SIGNING_CERTIFICATE_BASE64 and WINDOWS_SIGNING_CERTIFICATE_PASSWORD
+      # as GitHub Actions secrets to Authenticode-sign the executable before packaging.
+      - name: Sign Windows executable
+        shell: pwsh
+        env:
+          SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_BASE64) -or
+              [string]::IsNullOrWhiteSpace($env:SIGNING_CERTIFICATE_PASSWORD)) {
+            Write-Host "Signing secrets are not configured; continuing with an unsigned build."
+            exit 0
+          }
+
+          $certificatePath = Join-Path $env:RUNNER_TEMP "clipshot-signing.pfx"
+          [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:SIGNING_CERTIFICATE_BASE64))
+          try {
+            $sdkRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits/10/bin"
+            $signtool = Get-ChildItem $sdkRoot -Filter signtool.exe -Recurse |
+              Where-Object { $_.FullName -match '\\x64\\signtool.exe$' } |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if (-not $signtool) { throw "Windows SDK signtool.exe was not found on the runner." }
+
+            $exePath = "publish/win-x64/ClipShot.exe"
+            & $signtool.FullName sign /fd SHA256 /td SHA256 /tr "http://timestamp.digicert.com" /f $certificatePath /p $env:SIGNING_CERTIFICATE_PASSWORD $exePath
+            if ($LASTEXITCODE -ne 0) { throw "Authenticode signing failed with exit code $LASTEXITCODE." }
+
+            & $signtool.FullName verify /pa /v $exePath
+            if ($LASTEXITCODE -ne 0) { throw "Authenticode signature verification failed." }
+          }
+          finally {
+            Remove-Item $certificatePath -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Prepare release assets and checksums
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
           Copy-Item publish/win-x64/ClipShot.exe release-assets/ClipShot.exe
-          Compress-Archive -Path publish/win-x64/* -DestinationPath release-assets/ClipShot-win-x64-portable.zip
+
+          # Package as ClipShot.zip so the browser download name stays short.
+          $staging = Join-Path $env:RUNNER_TEMP "clipshot-zip-staging"
+          if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
+          Copy-Item publish/win-x64/ClipShot.exe (Join-Path $staging "ClipShot.exe")
+          Compress-Archive -Path (Join-Path $staging "*") -DestinationPath release-assets/ClipShot.zip -Force
+
+          $assets = Get-ChildItem release-assets -File | Sort-Object Name
+          $checksums = $assets | ForEach-Object {
+            "$( (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() )  $($_.Name)"
+          }
+          $checksums | Set-Content release-assets/SHA256SUMS.txt -Encoding ascii
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ClipShot-win-x64
+          name: ClipShot
           path: release-assets/*
           if-no-files-found: error
 
@@ -51,7 +98,7 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: ClipShot-win-x64
+          name: ClipShot
           path: release-files
 
       - name: Publish GitHub Release
@@ -60,4 +107,5 @@ jobs:
           generate_release_notes: true
           files: |
             release-files/ClipShot.exe
-            release-files/ClipShot-win-x64-portable.zip
+            release-files/ClipShot.zip
+            release-files/SHA256SUMS.txt
