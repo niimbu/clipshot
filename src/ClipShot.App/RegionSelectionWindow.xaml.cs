@@ -89,8 +89,9 @@ public partial class RegionSelectionWindow : Window
         cropped.Freeze();
         SelectedImage = cropped;
         HintBorder.Visibility = Visibility.Collapsed;
-        ActionsBar.Visibility = Visibility.Visible;
         Cursor = Cursors.Arrow;
+        // Open the editor immediately after the user finishes dragging.
+        DialogResult = true;
     }
 
     private void UpdateSelectionVisuals(Point current)
