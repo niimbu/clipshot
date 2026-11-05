@@ -58,6 +58,14 @@ public partial class ScreenshotEditorWindow : Window
     private BitmapSource? _fullScreenshot;
     private Rect _regionBounds;
     private double _dimOpacity = 0.45;
+    private readonly Dictionary<string, Ellipse> _resizeHandles = new(StringComparer.Ordinal);
+    private bool _selectionResizing;
+    private string? _resizeEdge;
+    private Rect _resizeOriginBounds;
+    private const string EffectBlurTag = "Effect:Blur";
+    private const string EffectPixelateTag = "Effect:Pixelate";
+    private const string ResizeHandleTag = "ResizeHandle";
+    private static readonly string[] ResizeEdges = ["NW", "N", "NE", "E", "SE", "S", "SW", "W"];
 
     public bool WasCopied { get; private set; }
     public bool WasSaved { get; private set; }
@@ -370,10 +378,22 @@ public partial class ScreenshotEditorWindow : Window
         var dipWidth = pixelWidth * 96d / dpiX;
         var dipHeight = pixelHeight * 96d / dpiY;
 
-        // Selection chrome is editor-only UI — never bake it into copies/undos.
-        var chromeVisibility = _selectionChrome?.Visibility;
-        if (_selectionChrome is not null)
-            _selectionChrome.Visibility = Visibility.Collapsed;
+        // Editor-only UI and effect placeholders are hidden; real mosaic is baked after render.
+        var effectRegions = CollectEffectRegions().ToArray();
+        var hidden = new List<(UIElement Element, Visibility Visibility)>();
+        void hide(UIElement? element)
+        {
+            if (element is null)
+                return;
+            hidden.Add((element, element.Visibility));
+            element.Visibility = Visibility.Collapsed;
+        }
+
+        hide(_selectionChrome);
+        foreach (var handle in _resizeHandles.Values)
+            hide(handle);
+        foreach (var effect in AnnotationCanvas.Children.OfType<UIElement>().Where(IsEffectAnnotation))
+            hide(effect);
 
         try
         {
@@ -384,12 +404,17 @@ public partial class ScreenshotEditorWindow : Window
             var rendered = new RenderTargetBitmap(pixelWidth, pixelHeight, dpiX, dpiY, PixelFormats.Pbgra32);
             rendered.Render(PreviewSurface);
             rendered.Freeze();
-            return rendered;
+
+            BitmapSource output = rendered;
+            foreach (var (bounds, block) in effectRegions)
+                output = ApplyMosaicToBitmap(output, bounds, block);
+
+            return output;
         }
         finally
         {
-            if (_selectionChrome is not null && chromeVisibility is not null)
-                _selectionChrome.Visibility = chromeVisibility.Value;
+            foreach (var (element, visibility) in hidden)
+                element.Visibility = visibility;
         }
     }
 
@@ -413,6 +438,8 @@ public partial class ScreenshotEditorWindow : Window
         PreviewSurface.Height = displayHeight;
         AnnotationCanvas.Strokes.Clear();
         AnnotationCanvas.Children.Clear();
+        _resizeHandles.Clear();
+        _previewShape = null;
         if (_inPlaceMode)
         {
             // Keep the edited region pixels — do not re-crop from the original capture
@@ -582,13 +609,7 @@ public partial class ScreenshotEditorWindow : Window
 
         if (_tool is EditorTool.Blur or EditorTool.Pixelate)
         {
-            _previewShape = new Rectangle
-            {
-                Stroke = Brushes.OrangeRed,
-                StrokeDashArray = new DoubleCollection { 3, 2 },
-                StrokeThickness = 2,
-                Fill = new SolidColorBrush(Color.FromArgb(35, 255, 120, 0))
-            };
+            _previewShape = CreateEffectShape(_tool == EditorTool.Blur);
             AnnotationCanvas.Children.Add(_previewShape);
             UpdateShape(ConstrainDrawingPoint(position));
             AnnotationCanvas.CaptureMouse();
@@ -599,6 +620,13 @@ public partial class ScreenshotEditorWindow : Window
     private void AnnotationCanvas_MouseMove(object sender, MouseEventArgs e)
     {
         var position = e.GetPosition(AnnotationCanvas);
+        if (_tool == EditorTool.Select && _selectionResizing)
+        {
+            ResizeSelectionTo(position);
+            e.Handled = true;
+            return;
+        }
+
         if (_tool == EditorTool.Select && _selectionMoving)
         {
             MoveSelectionTo(position);
@@ -623,6 +651,13 @@ public partial class ScreenshotEditorWindow : Window
 
     private void AnnotationCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        if (_tool == EditorTool.Select && _selectionResizing)
+        {
+            EndSelectionResize();
+            e.Handled = true;
+            return;
+        }
+
         if (_tool == EditorTool.Select && _selectionMoving)
         {
             EndSelectionMove();
@@ -710,16 +745,18 @@ public partial class ScreenshotEditorWindow : Window
             return;
         }
 
-        if (_tool is EditorTool.Blur or EditorTool.Pixelate)
-        {
-            if (_beforeAction is not null)
-                SaveUndoPointFrom(_beforeAction);
-            ApplyMosaic(rect, _tool == EditorTool.Blur ? 7 : 16);
-            return;
-        }
-
         if (_beforeAction is not null)
             SaveUndoPointFrom(_beforeAction);
+
+        if (_tool is EditorTool.Blur or EditorTool.Pixelate)
+        {
+            var effect = CreateEffectShape(_tool == EditorTool.Blur);
+            PlaceElement(effect, rect.Left, rect.Top);
+            effect.Width = rect.Width;
+            effect.Height = rect.Height;
+            AnnotationCanvas.Children.Add(effect);
+            return;
+        }
 
         var shape = CreateShape(_tool);
         if (shape is Line line)
@@ -744,6 +781,19 @@ public partial class ScreenshotEditorWindow : Window
 
         AnnotationCanvas.Children.Add(shape);
     }
+
+    private static Rectangle CreateEffectShape(bool blur) => new()
+    {
+        Tag = blur ? EffectBlurTag : EffectPixelateTag,
+        Stroke = blur
+            ? new SolidColorBrush(Color.FromArgb(220, 96, 165, 250))
+            : new SolidColorBrush(Color.FromArgb(220, 251, 146, 60)),
+        StrokeThickness = 1.5,
+        StrokeDashArray = new DoubleCollection { 4, 2 },
+        Fill = blur
+            ? new SolidColorBrush(Color.FromArgb(55, 96, 165, 250))
+            : new SolidColorBrush(Color.FromArgb(55, 251, 146, 60))
+    };
 
     private Point ConstrainDrawingPoint(Point current)
     {
@@ -918,6 +968,9 @@ public partial class ScreenshotEditorWindow : Window
 
     private void BeginSelectionAt(Point position)
     {
+        if (TryBeginResizeAt(position))
+            return;
+
         var element = HitTestTopAnnotation(position);
         if (element is not null)
         {
@@ -1028,10 +1081,12 @@ public partial class ScreenshotEditorWindow : Window
 
     private void ClearAnnotationSelection()
     {
-        if (_selectionMoving && AnnotationCanvas.IsMouseCaptured)
+        if ((_selectionMoving || _selectionResizing) && AnnotationCanvas.IsMouseCaptured)
             AnnotationCanvas.ReleaseMouseCapture();
 
         _selectionMoving = false;
+        _selectionResizing = false;
+        _resizeEdge = null;
         _selectedElement = null;
         _selectedStroke = null;
         _selectionStrokeOrigin = null;
@@ -1040,6 +1095,8 @@ public partial class ScreenshotEditorWindow : Window
             AnnotationCanvas.Children.Remove(_selectionChrome);
             _selectionChrome = null;
         }
+
+        HideResizeHandles();
     }
 
     private void UpdateSelectionChrome()
@@ -1052,6 +1109,8 @@ public partial class ScreenshotEditorWindow : Window
                 AnnotationCanvas.Children.Remove(_selectionChrome);
                 _selectionChrome = null;
             }
+
+            HideResizeHandles();
             return;
         }
 
@@ -1079,6 +1138,247 @@ public partial class ScreenshotEditorWindow : Window
         // Keep chrome above the selection target.
         AnnotationCanvas.Children.Remove(_selectionChrome);
         AnnotationCanvas.Children.Add(_selectionChrome);
+
+        if (_selectedElement is not null && IsResizableAnnotation(_selectedElement))
+            UpdateResizeHandles(bounds.Value);
+        else
+            HideResizeHandles();
+    }
+
+    private static bool IsResizableAnnotation(UIElement element) =>
+        element is Ellipse
+        || element is Rectangle
+        || IsEffectAnnotation(element);
+
+    private static bool IsEffectAnnotation(UIElement element) =>
+        element is Shape { Tag: string tag }
+        && (tag == EffectBlurTag || tag == EffectPixelateTag);
+
+    private IEnumerable<(Rect Bounds, int Block)> CollectEffectRegions()
+    {
+        foreach (var child in AnnotationCanvas.Children.OfType<Shape>())
+        {
+            if (child.Tag is not string tag)
+                continue;
+            var block = tag switch
+            {
+                EffectBlurTag => 7,
+                EffectPixelateTag => 16,
+                _ => 0
+            };
+            if (block == 0)
+                continue;
+            yield return (GetAnnotationBounds(child), block);
+        }
+    }
+
+    private bool TryBeginResizeAt(Point position)
+    {
+        if (_selectedElement is null || !IsResizableAnnotation(_selectedElement))
+            return false;
+
+        var edge = HitTestResizeHandle(position);
+        if (edge is null)
+            return false;
+
+        var bounds = GetAnnotationBounds(_selectedElement);
+        _selectionResizing = true;
+        _selectionMoving = false;
+        _resizeEdge = edge;
+        _selectionDragStart = position;
+        _resizeOriginBounds = bounds;
+        _beforeAction = RenderAnnotatedImage();
+        AnnotationCanvas.CaptureMouse();
+        return true;
+    }
+
+    private string? HitTestResizeHandle(Point position)
+    {
+        const double hit = 10;
+        foreach (var (edge, handle) in _resizeHandles)
+        {
+            if (handle.Visibility != Visibility.Visible)
+                continue;
+            var left = InkCanvas.GetLeft(handle);
+            var top = InkCanvas.GetTop(handle);
+            if (double.IsNaN(left) || double.IsNaN(top))
+                continue;
+            var center = new Point(left + handle.Width / 2, top + handle.Height / 2);
+            if (Math.Abs(position.X - center.X) <= hit && Math.Abs(position.Y - center.Y) <= hit)
+                return edge;
+        }
+
+        return null;
+    }
+
+    private void EnsureResizeHandles()
+    {
+        if (_resizeHandles.Count > 0)
+            return;
+
+        foreach (var edge in ResizeEdges)
+        {
+            var handle = new Ellipse
+            {
+                Tag = ResizeHandleTag,
+                Width = 9,
+                Height = 9,
+                Fill = Brushes.White,
+                Stroke = new SolidColorBrush(Color.FromRgb(0x16, 0x18, 0x1D)),
+                StrokeThickness = 1,
+                Cursor = edge is "N" or "S" ? Cursors.SizeNS
+                    : edge is "E" or "W" ? Cursors.SizeWE
+                    : edge is "NE" or "SW" ? Cursors.SizeNESW
+                    : Cursors.SizeNWSE
+            };
+            _resizeHandles[edge] = handle;
+            AnnotationCanvas.Children.Add(handle);
+        }
+    }
+
+    private void HideResizeHandles()
+    {
+        foreach (var handle in _resizeHandles.Values)
+            handle.Visibility = Visibility.Collapsed;
+    }
+
+    private void UpdateResizeHandles(Rect bounds)
+    {
+        EnsureResizeHandles();
+
+        void place(string edge, double x, double y)
+        {
+            var handle = _resizeHandles[edge];
+            handle.Visibility = Visibility.Visible;
+            PlaceElement(handle, x - handle.Width / 2, y - handle.Height / 2);
+            AnnotationCanvas.Children.Remove(handle);
+            AnnotationCanvas.Children.Add(handle);
+        }
+
+        place("NW", bounds.Left, bounds.Top);
+        place("N", bounds.Left + bounds.Width / 2, bounds.Top);
+        place("NE", bounds.Right, bounds.Top);
+        place("E", bounds.Right, bounds.Top + bounds.Height / 2);
+        place("SE", bounds.Right, bounds.Bottom);
+        place("S", bounds.Left + bounds.Width / 2, bounds.Bottom);
+        place("SW", bounds.Left, bounds.Bottom);
+        place("W", bounds.Left, bounds.Top + bounds.Height / 2);
+    }
+
+    private void ResizeSelectionTo(Point position)
+    {
+        if (_selectedElement is null || _resizeEdge is null)
+            return;
+
+        var left = _resizeOriginBounds.Left;
+        var top = _resizeOriginBounds.Top;
+        var right = _resizeOriginBounds.Right;
+        var bottom = _resizeOriginBounds.Bottom;
+        var dx = position.X - _selectionDragStart.X;
+        var dy = position.Y - _selectionDragStart.Y;
+
+        switch (_resizeEdge)
+        {
+            case "NW":
+                left += dx;
+                top += dy;
+                break;
+            case "N":
+                top += dy;
+                break;
+            case "NE":
+                right += dx;
+                top += dy;
+                break;
+            case "E":
+                right += dx;
+                break;
+            case "SE":
+                right += dx;
+                bottom += dy;
+                break;
+            case "S":
+                bottom += dy;
+                break;
+            case "SW":
+                left += dx;
+                bottom += dy;
+                break;
+            case "W":
+                left += dx;
+                break;
+        }
+
+        // Hold Shift while resizing to keep a square / circle.
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+        {
+            var width = Math.Abs(right - left);
+            var height = Math.Abs(bottom - top);
+            var side = Math.Max(width, height);
+            if (_resizeEdge.Contains('E'))
+                right = left + Math.Sign(right - left == 0 ? 1 : right - left) * side;
+            else if (_resizeEdge.Contains('W'))
+                left = right - Math.Sign(right - left == 0 ? 1 : right - left) * side;
+            if (_resizeEdge.Contains('S'))
+                bottom = top + Math.Sign(bottom - top == 0 ? 1 : bottom - top) * side;
+            else if (_resizeEdge.Contains('N'))
+                top = bottom - Math.Sign(bottom - top == 0 ? 1 : bottom - top) * side;
+        }
+
+        const double minSize = 12;
+        if (right - left < minSize)
+        {
+            if (_resizeEdge is "E" or "NE" or "SE")
+                right = left + minSize;
+            else
+                left = right - minSize;
+        }
+
+        if (bottom - top < minSize)
+        {
+            if (_resizeEdge is "S" or "SE" or "SW")
+                bottom = top + minSize;
+            else
+                top = bottom - minSize;
+        }
+
+        ApplyBoundsToElement(_selectedElement, new Rect(left, top, right - left, bottom - top));
+        UpdateSelectionChrome();
+    }
+
+    private void EndSelectionResize()
+    {
+        if (!_selectionResizing)
+            return;
+
+        _selectionResizing = false;
+        AnnotationCanvas.ReleaseMouseCapture();
+
+        var changed = false;
+        if (_selectedElement is not null)
+        {
+            var bounds = GetAnnotationBounds(_selectedElement);
+            changed = Math.Abs(bounds.Left - _resizeOriginBounds.Left) > 0.5
+                      || Math.Abs(bounds.Top - _resizeOriginBounds.Top) > 0.5
+                      || Math.Abs(bounds.Width - _resizeOriginBounds.Width) > 0.5
+                      || Math.Abs(bounds.Height - _resizeOriginBounds.Height) > 0.5;
+        }
+
+        if (changed && _beforeAction is not null)
+            SaveUndoPointFrom(_beforeAction);
+
+        _resizeEdge = null;
+        _beforeAction = null;
+    }
+
+    private static void ApplyBoundsToElement(UIElement element, Rect bounds)
+    {
+        if (element is not FrameworkElement fe)
+            return;
+
+        PlaceElement(fe, bounds.Left, bounds.Top);
+        fe.Width = Math.Max(1, bounds.Width);
+        fe.Height = Math.Max(1, bounds.Height);
     }
 
     private Rect? GetSelectionBounds()
@@ -1101,6 +1401,7 @@ public partial class ScreenshotEditorWindow : Window
         element != _selectionChrome
         && element != _inlineTextHost
         && element != _previewShape
+        && element is not Shape { Tag: ResizeHandleTag }
         && element is Shape or TextBlock or Border;
 
     private UIElement? HitTestTopAnnotation(Point point)
@@ -1314,16 +1615,8 @@ public partial class ScreenshotEditorWindow : Window
         _redo.Clear();
     }
 
-    private void ApplyMosaic(Rect selection, int block)
+    private BitmapSource ApplyMosaicToBitmap(BitmapSource source, Rect selection, int block)
     {
-        // Flatten live annotations into the bitmap first. ApplySnapshot clears Children/Strokes,
-        // which previously made the first blur/pixelate appear to delete drawn tools.
-        FlattenAnnotationsOntoImage();
-
-        var source = PreviewImage.Source as BitmapSource;
-        if (source is null)
-            return;
-
         var overlayWidth = Math.Max(1d, AnnotationCanvas.Width);
         var overlayHeight = Math.Max(1d, AnnotationCanvas.Height);
         var scaleX = source.PixelWidth / overlayWidth;
@@ -1389,24 +1682,7 @@ public partial class ScreenshotEditorWindow : Window
         var rendered = new RenderTargetBitmap(source.PixelWidth, source.PixelHeight, source.DpiX, source.DpiY, PixelFormats.Pbgra32);
         rendered.Render(full);
         rendered.Freeze();
-        ApplySnapshot(rendered);
-    }
-
-    private void FlattenAnnotationsOntoImage()
-    {
-        var hasAnnotations = AnnotationCanvas.Strokes.Count > 0
-            || AnnotationCanvas.Children.Cast<UIElement>().Any(child => child != _selectionChrome && child != _previewShape);
-        if (!hasAnnotations)
-            return;
-
-        var flattened = RenderAnnotatedImage();
-        PreviewImage.Source = flattened;
-        ClearAnnotationSelection();
-        AnnotationCanvas.Strokes.Clear();
-        AnnotationCanvas.Children.Clear();
-        _previewShape = null;
-        _inlineTextHost = null;
-        _inlineTextBox = null;
+        return rendered;
     }
 
     private void Copy_Click(object sender, RoutedEventArgs e) => CopyAndClose();
