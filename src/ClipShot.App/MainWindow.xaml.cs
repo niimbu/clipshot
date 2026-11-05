@@ -19,7 +19,8 @@ namespace ClipShot;
 public partial class MainWindow : Window
 {
     private readonly CaptureService _captureService = new();
-    private readonly DispatcherTimer _updateCheckTimer = new() { Interval = TimeSpan.FromHours(6) };
+    private readonly DispatcherTimer _updateCheckTimer = new() { Interval = TimeSpan.FromMinutes(30) };
+    private static readonly TimeSpan AutoUpdateCheckCooldown = TimeSpan.FromMinutes(2);
     private AppSettings _settings = new();
     private AppSettings _activeSettings = new();
     private GlobalHotkeyManager? _hotkeyManager;
@@ -29,6 +30,9 @@ public partial class MainWindow : Window
     private Forms.NotifyIcon? _trayIcon;
     private bool _allowExit;
     private bool _trayNoticeShown;
+    private DateTime _lastUpdateCheckUtc = DateTime.MinValue;
+    private Version? _notifiedUpdateVersion;
+    private bool _updateCheckInFlight;
 
     public MainWindow()
     {
@@ -103,6 +107,7 @@ public partial class MainWindow : Window
         if (WindowState == WindowState.Minimized)
             WindowState = WindowState.Normal;
         Activate();
+        _ = CheckForUpdatesAsync();
     }
 
     private void ExitApplication()
@@ -121,6 +126,13 @@ public partial class MainWindow : Window
 
     private async Task CheckForUpdatesAsync(bool manual = false)
     {
+        if (_updateCheckInFlight)
+            return;
+
+        if (!manual && DateTime.UtcNow - _lastUpdateCheckUtc < AutoUpdateCheckCooldown)
+            return;
+
+        _updateCheckInFlight = true;
         if (manual)
         {
             CheckForUpdatesButton.IsEnabled = false;
@@ -131,6 +143,7 @@ public partial class MainWindow : Window
         try
         {
             var release = await UpdateChecker.GetLatestReleaseAsync();
+            _lastUpdateCheckUtc = DateTime.UtcNow;
             if (release is null)
             {
                 _latestReleaseUri = null;
@@ -143,16 +156,22 @@ public partial class MainWindow : Window
             var currentVersion = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0);
             if (release.Version > currentVersion)
             {
+                var alreadyShowing = UpdateNoticePanel.Visibility == Visibility.Visible &&
+                                     _notifiedUpdateVersion == release.Version;
                 _latestReleaseUri = release.Url;
                 UpdateNoticeTitle.Text = $"ClipShot {FormatVersion(release.Version)} is available";
                 UpdateNoticeDetails.Text = $"You're using version {FormatVersion(currentVersion)}. Update now to install the latest version.";
                 UpdateNoticePanel.Visibility = Visibility.Visible;
                 if (manual)
                     StatusText.Text = $"Update found: ClipShot {FormatVersion(release.Version)} is available.";
+
+                if (!alreadyShowing)
+                    NotifyUpdateAvailable(release.Version);
             }
             else
             {
                 _latestReleaseUri = release.Url;
+                _notifiedUpdateVersion = null;
                 UpdateNoticePanel.Visibility = Visibility.Collapsed;
                 if (manual)
                     StatusText.Text = $"You're up to date · ClipShot {FormatVersion(currentVersion)} (latest {FormatVersion(release.Version)}).";
@@ -169,12 +188,27 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _updateCheckInFlight = false;
             if (manual)
             {
                 CheckForUpdatesButton.IsEnabled = true;
                 CheckForUpdatesButton.Content = "Check for updates";
             }
         }
+    }
+
+    private void NotifyUpdateAvailable(Version version)
+    {
+        _notifiedUpdateVersion = version;
+        if (_trayIcon is null)
+            return;
+
+        _trayIcon.BalloonTipTitle = $"ClipShot {FormatVersion(version)} is available";
+        _trayIcon.BalloonTipText = IsVisible
+            ? "Open ClipShot to update now."
+            : "A new version is ready. Open ClipShot from the tray to update.";
+        _trayIcon.BalloonTipIcon = Forms.ToolTipIcon.Info;
+        _trayIcon.ShowBalloonTip(6000);
     }
 
     private async void UpdateNow_Click(object sender, RoutedEventArgs e)
