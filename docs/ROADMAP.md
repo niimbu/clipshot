@@ -1,31 +1,19 @@
 # ClipShot roadmap
 
-## Milestone 1 — Capture foundation
-- [x] WPF desktop shell and visual direction
-- [x] Primary-display capture
-- [x] Copy captured image to clipboard
-- [x] Save full-screen capture as PNG
-- [x] Region selection overlay
-- [x] Copy selected region to clipboard
-- [x] Save selected region as PNG
+## Done
 
-## Milestone 2 — Everyday workflow
-- [x] Global keyboard shortcuts for region and full-screen capture
-- [x] User-configurable shortcuts saved between launches
-- [ ] Capture all displays
-- [ ] Recent captures and output folder setting
-- [ ] Capture preview and quick actions
+- Capture foundation: region and full-screen capture, clipboard copy, PNG save
+- Global hotkeys with user-configurable shortcuts
+- In-place annotation: pen, highlighter, arrow, line, rectangle, ellipse, text, numbered steps
+- Privacy tools: blur and pixelate (live preview, resizable)
+- Select tool: move annotations; endpoint grips for lines/arrows; box rescale for shapes and effects
+- Undo / redo, Start with Windows, region dim opacity, in-app update check
+- CI builds and GitHub Releases (self-contained Windows x64)
 
-## Milestone 3 — Annotation
-- [ ] Arrow, line, rectangle, ellipse
-- [ ] Text and numbered steps
-- [ ] Blur and pixelate
-- [ ] Undo and redo
+## Next
 
-## Milestone 4 — Polish
-- [ ] Pin screenshot above other windows
-- [ ] Accessibility and keyboard navigation
-- [ ] Automated tests and CI builds
-- [ ] Installer and signed release packages
-
-The roadmap is intentionally incremental. Each milestone should leave the app in a buildable, usable state.
+- Capture all displays
+- Recent captures and output folder setting
+- Pin screenshot above other windows
+- Accessibility polish
+- Installer packaging and optional Authenticode-signed releases
