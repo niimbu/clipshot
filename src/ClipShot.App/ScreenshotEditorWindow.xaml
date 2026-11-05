@@ -168,7 +168,7 @@
                 <Button x:Name="EraseButton" Click="Erase_Click" ToolTip="Eraser — scrub annotations" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Erase">
                     <Path Style="{StaticResource ToolIcon}" Data="M4,12 L10,4 L16,10 L10,16 Z M7,15 H17"/>
                 </Button>
-                <Button x:Name="SelectButton" Click="Select_Click" ToolTip="Select — click an annotation to move or delete it" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Select">
+                <Button x:Name="SelectButton" Click="Select_Click" ToolTip="Select — click to select, drag to move, Delete to remove" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Select">
                     <Path Style="{StaticResource ToolIconFill}" Data="M4,3 L4,15 L8,12 L11,18 L13,17 L10,11 L15,11 Z"/>
                 </Button>
                 <Button x:Name="DeleteButton" Click="DeleteSelection_Click" ToolTip="Delete selected annotation (or the last one)" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Delete selection">
@@ -182,7 +182,7 @@
                     <Path Style="{StaticResource ToolIcon}" Data="M13,8 H16 V5 M16,8 A6,6 0 1 0 15,14"/>
                 </Button>
                 <Border Style="{StaticResource EditorToolDivider}"/>
-                <Button Click="Copy_Click" ToolTip="Copy and close (Space)" Style="{StaticResource EditorPrimaryToolButton}" AutomationProperties.Name="Copy" Width="Auto" MinWidth="72" Padding="12,0">
+                <Button Click="Copy_Click" ToolTip="Copy and close (Space — disabled while typing text)" Style="{StaticResource EditorPrimaryToolButton}" AutomationProperties.Name="Copy" Width="Auto" MinWidth="72" Padding="12,0">
                     <StackPanel Orientation="Horizontal">
                         <Path Style="{StaticResource ToolIcon}" Width="14" Height="14" Data="M7,3 H15 V13 H7 Z M5,5 V17 H13"/>
                         <TextBlock Text="Copy" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"

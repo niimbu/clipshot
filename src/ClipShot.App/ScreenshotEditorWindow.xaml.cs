@@ -40,6 +40,14 @@ public partial class ScreenshotEditorWindow : Window
     private Border? _inlineTextHost;
     private TextBox? _inlineTextBox;
     private BitmapSource? _inlineTextUndo;
+    private UIElement? _selectedElement;
+    private Stroke? _selectedStroke;
+    private Rectangle? _selectionChrome;
+    private bool _selectionMoving;
+    private Point _selectionDragStart;
+    private double _selectionOriginLeft;
+    private double _selectionOriginTop;
+    private StylusPointCollection? _selectionStrokeOrigin;
 
     public bool WasCopied { get; private set; }
     public bool WasSaved { get; private set; }
@@ -69,12 +77,17 @@ public partial class ScreenshotEditorWindow : Window
     private void SetTool(EditorTool tool)
     {
         CommitInlineText(save: true);
+        if (tool != EditorTool.Select)
+            ClearAnnotationSelection();
+
         _tool = tool;
+        // Use None for Select — InkCanvas's built-in Select mode fights our Preview mouse
+        // handlers and fails on Line/Path children with zero layout size. Custom hit-test
+        // selection below handles both shapes and ink strokes.
         AnnotationCanvas.EditingMode = tool switch
         {
             EditorTool.Pen or EditorTool.Highlight => InkCanvasEditingMode.Ink,
             EditorTool.Erase => InkCanvasEditingMode.EraseByPoint,
-            EditorTool.Select => InkCanvasEditingMode.Select,
             _ => InkCanvasEditingMode.None
         };
         if (tool == EditorTool.Erase)
@@ -84,7 +97,7 @@ public partial class ScreenshotEditorWindow : Window
         {
             EditorTool.Blur or EditorTool.Pixelate or EditorTool.Rectangle or EditorTool.Ellipse or EditorTool.Arrow or EditorTool.Line => Cursors.Cross,
             EditorTool.Erase => Cursors.Cross,
-            EditorTool.Select => Cursors.Arrow,
+            EditorTool.Select => Cursors.Hand,
             EditorTool.Text or EditorTool.Number => Cursors.IBeam,
             _ => Cursors.Pen
         };
@@ -142,11 +155,19 @@ public partial class ScreenshotEditorWindow : Window
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (_inlineTextHost is not null && e.Key is Key.Enter or Key.Escape)
+        // While typing a text annotation, never steal keys (especially Space → copy/close).
+        if (IsEditingTextAnnotation())
             return;
 
         if (e.Key == Key.Escape)
         {
+            if (_selectedElement is not null || _selectedStroke is not null)
+            {
+                ClearAnnotationSelection();
+                e.Handled = true;
+                return;
+            }
+
             Close();
             e.Handled = true;
             return;
@@ -180,11 +201,25 @@ public partial class ScreenshotEditorWindow : Window
         }
     }
 
+    private bool IsEditingTextAnnotation() =>
+        _inlineTextHost is not null || Keyboard.FocusedElement is TextBox;
+
     private void DeleteSelection_Click(object sender, RoutedEventArgs e) => DeleteSelection();
 
     private void DeleteSelection()
     {
         CommitInlineText(save: false);
+
+        if (_selectedElement is not null || _selectedStroke is not null)
+        {
+            SaveUndoPoint();
+            if (_selectedElement is not null)
+                AnnotationCanvas.Children.Remove(_selectedElement);
+            if (_selectedStroke is not null)
+                AnnotationCanvas.Strokes.Remove(_selectedStroke);
+            ClearAnnotationSelection();
+            return;
+        }
 
         var selectedStrokes = AnnotationCanvas.GetSelectedStrokes();
         var selectedElements = AnnotationCanvas.GetSelectedElements().Cast<UIElement>().ToArray();
@@ -222,14 +257,27 @@ public partial class ScreenshotEditorWindow : Window
         var dipWidth = pixelWidth * 96d / dpiX;
         var dipHeight = pixelHeight * 96d / dpiY;
 
-        PreviewSurface.Measure(new Size(dipWidth, dipHeight));
-        PreviewSurface.Arrange(new Rect(0, 0, dipWidth, dipHeight));
-        PreviewSurface.UpdateLayout();
+        // Selection chrome is editor-only UI — never bake it into copies/undos.
+        var chromeVisibility = _selectionChrome?.Visibility;
+        if (_selectionChrome is not null)
+            _selectionChrome.Visibility = Visibility.Collapsed;
 
-        var rendered = new RenderTargetBitmap(pixelWidth, pixelHeight, dpiX, dpiY, PixelFormats.Pbgra32);
-        rendered.Render(PreviewSurface);
-        rendered.Freeze();
-        return rendered;
+        try
+        {
+            PreviewSurface.Measure(new Size(dipWidth, dipHeight));
+            PreviewSurface.Arrange(new Rect(0, 0, dipWidth, dipHeight));
+            PreviewSurface.UpdateLayout();
+
+            var rendered = new RenderTargetBitmap(pixelWidth, pixelHeight, dpiX, dpiY, PixelFormats.Pbgra32);
+            rendered.Render(PreviewSurface);
+            rendered.Freeze();
+            return rendered;
+        }
+        finally
+        {
+            if (_selectionChrome is not null && chromeVisibility is not null)
+                _selectionChrome.Visibility = chromeVisibility.Value;
+        }
     }
 
     private void SaveUndoPoint()
@@ -240,6 +288,7 @@ public partial class ScreenshotEditorWindow : Window
 
     private void ApplySnapshot(BitmapSource snapshot)
     {
+        ClearAnnotationSelection();
         PreviewImage.Source = snapshot;
         var displayWidth = snapshot.PixelWidth * 96d / snapshot.DpiX;
         var displayHeight = snapshot.PixelHeight * 96d / snapshot.DpiY;
@@ -311,7 +360,11 @@ public partial class ScreenshotEditorWindow : Window
         }
 
         if (_tool == EditorTool.Select)
+        {
+            BeginSelectionAt(position);
+            e.Handled = true;
             return;
+        }
 
         _start = position;
         _beforeAction = RenderAnnotatedImage();
@@ -381,10 +434,17 @@ public partial class ScreenshotEditorWindow : Window
 
     private void AnnotationCanvas_MouseMove(object sender, MouseEventArgs e)
     {
+        var position = e.GetPosition(AnnotationCanvas);
+        if (_tool == EditorTool.Select && _selectionMoving)
+        {
+            MoveSelectionTo(position);
+            e.Handled = true;
+            return;
+        }
+
         if (!_drawing)
             return;
 
-        var position = e.GetPosition(AnnotationCanvas);
         if (_tool == EditorTool.Erase)
         {
             EraseElementsAt(position);
@@ -399,6 +459,13 @@ public partial class ScreenshotEditorWindow : Window
 
     private void AnnotationCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        if (_tool == EditorTool.Select && _selectionMoving)
+        {
+            EndSelectionMove();
+            e.Handled = true;
+            return;
+        }
+
         if (!_drawing)
             return;
 
@@ -594,15 +661,246 @@ public partial class ScreenshotEditorWindow : Window
         const double radius = 18;
         var hitElements = AnnotationCanvas.Children.Cast<UIElement>()
             .Where(element => element is not Border host || host != _inlineTextHost)
+            .Where(element => element != _selectionChrome)
             .Where(element => element is Shape or TextBlock or Border)
             .Where(element => HitTestAnnotation(element, point, radius))
             .ToArray();
 
         foreach (var element in hitElements)
         {
+            if (element == _selectedElement)
+                ClearAnnotationSelection();
             AnnotationCanvas.Children.Remove(element);
             _eraseChanged = true;
         }
+    }
+
+    private void BeginSelectionAt(Point position)
+    {
+        var element = HitTestTopAnnotation(position);
+        if (element is not null)
+        {
+            SelectAnnotationElement(element);
+            StartSelectionMove(position);
+            return;
+        }
+
+        var strokes = AnnotationCanvas.Strokes.HitTest(position, 10);
+        if (strokes.Count > 0)
+        {
+            // Prefer the top-most (last drawn) stroke under the pointer.
+            SelectAnnotationStroke(strokes[^1]);
+            StartSelectionMove(position);
+            return;
+        }
+
+        ClearAnnotationSelection();
+    }
+
+    private void StartSelectionMove(Point position)
+    {
+        _selectionMoving = true;
+        _selectionDragStart = position;
+        _beforeAction = RenderAnnotatedImage();
+
+        if (_selectedElement is not null)
+        {
+            _selectionOriginLeft = InkCanvas.GetLeft(_selectedElement);
+            _selectionOriginTop = InkCanvas.GetTop(_selectedElement);
+            if (double.IsNaN(_selectionOriginLeft)) _selectionOriginLeft = 0;
+            if (double.IsNaN(_selectionOriginTop)) _selectionOriginTop = 0;
+        }
+        else if (_selectedStroke is not null)
+        {
+            _selectionStrokeOrigin = new StylusPointCollection(_selectedStroke.StylusPoints);
+        }
+
+        AnnotationCanvas.CaptureMouse();
+    }
+
+    private void MoveSelectionTo(Point position)
+    {
+        var dx = position.X - _selectionDragStart.X;
+        var dy = position.Y - _selectionDragStart.Y;
+
+        if (_selectedElement is not null)
+        {
+            PlaceElement(_selectedElement, _selectionOriginLeft + dx, _selectionOriginTop + dy);
+            UpdateSelectionChrome();
+            return;
+        }
+
+        if (_selectedStroke is not null && _selectionStrokeOrigin is not null)
+        {
+            var moved = new StylusPointCollection(_selectionStrokeOrigin.Count);
+            foreach (var point in _selectionStrokeOrigin)
+                moved.Add(new StylusPoint(point.X + dx, point.Y + dy, point.PressureFactor));
+            _selectedStroke.StylusPoints = moved;
+            UpdateSelectionChrome();
+        }
+    }
+
+    private void EndSelectionMove()
+    {
+        if (!_selectionMoving)
+            return;
+
+        _selectionMoving = false;
+        AnnotationCanvas.ReleaseMouseCapture();
+
+        var moved = false;
+        if (_selectedElement is not null)
+        {
+            var left = InkCanvas.GetLeft(_selectedElement);
+            var top = InkCanvas.GetTop(_selectedElement);
+            if (double.IsNaN(left)) left = 0;
+            if (double.IsNaN(top)) top = 0;
+            moved = Math.Abs(left - _selectionOriginLeft) > 0.5 || Math.Abs(top - _selectionOriginTop) > 0.5;
+        }
+        else if (_selectedStroke is not null && _selectionStrokeOrigin is not null && _selectedStroke.StylusPoints.Count > 0)
+        {
+            var first = _selectedStroke.StylusPoints[0];
+            var origin = _selectionStrokeOrigin[0];
+            moved = Math.Abs(first.X - origin.X) > 0.5 || Math.Abs(first.Y - origin.Y) > 0.5;
+        }
+
+        if (moved && _beforeAction is not null)
+            SaveUndoPointFrom(_beforeAction);
+
+        _selectionStrokeOrigin = null;
+        _beforeAction = null;
+    }
+
+    private void SelectAnnotationElement(UIElement element)
+    {
+        _selectedStroke = null;
+        _selectedElement = element;
+        UpdateSelectionChrome();
+    }
+
+    private void SelectAnnotationStroke(Stroke stroke)
+    {
+        _selectedElement = null;
+        _selectedStroke = stroke;
+        UpdateSelectionChrome();
+    }
+
+    private void ClearAnnotationSelection()
+    {
+        if (_selectionMoving && AnnotationCanvas.IsMouseCaptured)
+            AnnotationCanvas.ReleaseMouseCapture();
+
+        _selectionMoving = false;
+        _selectedElement = null;
+        _selectedStroke = null;
+        _selectionStrokeOrigin = null;
+        if (_selectionChrome is not null)
+        {
+            AnnotationCanvas.Children.Remove(_selectionChrome);
+            _selectionChrome = null;
+        }
+    }
+
+    private void UpdateSelectionChrome()
+    {
+        var bounds = GetSelectionBounds();
+        if (bounds is null)
+        {
+            if (_selectionChrome is not null)
+            {
+                AnnotationCanvas.Children.Remove(_selectionChrome);
+                _selectionChrome = null;
+            }
+            return;
+        }
+
+        var rect = bounds.Value;
+        rect.Inflate(4, 4);
+
+        if (_selectionChrome is null)
+        {
+            _selectionChrome = new Rectangle
+            {
+                Stroke = Brushes.White,
+                StrokeThickness = 1.25,
+                StrokeDashArray = new DoubleCollection { 4, 2 },
+                Fill = Brushes.Transparent,
+                IsHitTestVisible = false
+            };
+            AnnotationCanvas.Children.Add(_selectionChrome);
+        }
+
+        PlaceElement(_selectionChrome, rect.Left, rect.Top);
+        _selectionChrome.Width = Math.Max(1, rect.Width);
+        _selectionChrome.Height = Math.Max(1, rect.Height);
+
+        // Keep chrome above the selection target.
+        AnnotationCanvas.Children.Remove(_selectionChrome);
+        AnnotationCanvas.Children.Add(_selectionChrome);
+    }
+
+    private Rect? GetSelectionBounds()
+    {
+        if (_selectedElement is not null)
+            return GetAnnotationBounds(_selectedElement);
+
+        if (_selectedStroke is not null)
+        {
+            var bounds = _selectedStroke.GetBounds();
+            if (bounds.IsEmpty)
+                return null;
+            return bounds;
+        }
+
+        return null;
+    }
+
+    private UIElement? HitTestTopAnnotation(Point point)
+    {
+        const double radius = 6;
+        return AnnotationCanvas.Children.Cast<UIElement>()
+            .Where(element => element is not Border host || host != _inlineTextHost)
+            .Where(element => element != _selectionChrome)
+            .Where(element => element is Shape or TextBlock or Border)
+            .Reverse()
+            .FirstOrDefault(element => HitTestAnnotation(element, point, radius));
+    }
+
+    private static Rect GetAnnotationBounds(UIElement element)
+    {
+        var left = InkCanvas.GetLeft(element);
+        var top = InkCanvas.GetTop(element);
+        if (double.IsNaN(left)) left = 0;
+        if (double.IsNaN(top)) top = 0;
+
+        Rect local;
+        if (element is Line line)
+        {
+            local = new Rect(
+                Math.Min(line.X1, line.X2),
+                Math.Min(line.Y1, line.Y2),
+                Math.Max(1, Math.Abs(line.X2 - line.X1)),
+                Math.Max(1, Math.Abs(line.Y2 - line.Y1)));
+        }
+        else if (element is Shape shape)
+        {
+            var geometryBounds = shape.RenderedGeometry.Bounds;
+            if (geometryBounds.IsEmpty)
+                local = new Rect(0, 0, Math.Max(1, shape.ActualWidth > 0 ? shape.ActualWidth : shape.Width),
+                    Math.Max(1, shape.ActualHeight > 0 ? shape.ActualHeight : shape.Height));
+            else
+                local = geometryBounds;
+        }
+        else
+        {
+            element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var size = element.DesiredSize;
+            if (size.Width < 1 || size.Height < 1)
+                size = element.RenderSize;
+            local = new Rect(0, 0, Math.Max(size.Width, 8), Math.Max(size.Height, 8));
+        }
+
+        return new Rect(left + local.Left, top + local.Top, Math.Max(local.Width, 1), Math.Max(local.Height, 1));
     }
 
     private static bool HitTestAnnotation(UIElement element, Point point, double radius)
