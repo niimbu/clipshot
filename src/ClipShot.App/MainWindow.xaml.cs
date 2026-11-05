@@ -232,7 +232,7 @@ public partial class MainWindow : Window
 
     private void OpenScreenshotEditor(BitmapSource bitmap)
     {
-        var editor = new ScreenshotEditorWindow(bitmap) { Owner = this };
+        var editor = new ScreenshotEditorWindow(bitmap);
         editor.ShowDialog();
         StatusText.Text = editor.WasCopied
             ? $"Copied screenshot  ·  {bitmap.PixelWidth} × {bitmap.PixelHeight}"

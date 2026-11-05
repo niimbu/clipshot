@@ -27,6 +27,7 @@ namespace ClipShot;
 public partial class ScreenshotEditorWindow : Window
 {
     private enum EditorTool { Pen, Highlight, Erase, Select, Arrow, Line, Rectangle, Ellipse, Text, Number, Blur, Pixelate }
+
     private EditorTool _tool = EditorTool.Pen;
     private Point _start;
     private Shape? _previewShape;
@@ -44,13 +45,22 @@ public partial class ScreenshotEditorWindow : Window
     {
         InitializeComponent();
         PreviewImage.Source = image;
-        AnnotationCanvas.Width = image.PixelWidth * 96d / image.DpiX;
-        AnnotationCanvas.Height = image.PixelHeight * 96d / image.DpiY;
-        PreviewImage.Width = AnnotationCanvas.Width;
-        PreviewImage.Height = AnnotationCanvas.Height;
-        PreviewSurface.Width = AnnotationCanvas.Width;
-        PreviewSurface.Height = AnnotationCanvas.Height;
+        var width = image.PixelWidth * 96d / image.DpiX;
+        var height = image.PixelHeight * 96d / image.DpiY;
+        AnnotationCanvas.Width = width;
+        AnnotationCanvas.Height = height;
+        PreviewImage.Width = width;
+        PreviewImage.Height = height;
+        PreviewSurface.Width = width;
+        PreviewSurface.Height = height;
         SetTool(EditorTool.Pen);
+    }
+
+    private void Window_Loaded(object sender, RoutedEventArgs e)
+    {
+        Activate();
+        Focus();
+        AnnotationCanvas.Focus();
     }
 
     private void SetTool(EditorTool tool)
@@ -63,7 +73,12 @@ public partial class ScreenshotEditorWindow : Window
             EditorTool.Select => InkCanvasEditingMode.Select,
             _ => InkCanvasEditingMode.None
         };
-        AnnotationCanvas.Cursor = tool is EditorTool.Blur or EditorTool.Pixelate ? Cursors.Cross : Cursors.Pen;
+        AnnotationCanvas.Cursor = tool switch
+        {
+            EditorTool.Blur or EditorTool.Pixelate or EditorTool.Rectangle or EditorTool.Ellipse => Cursors.Cross,
+            EditorTool.Select => Cursors.Arrow,
+            _ => Cursors.Pen
+        };
         AnnotationCanvas.DefaultDrawingAttributes = new DrawingAttributes
         {
             Color = tool == EditorTool.Highlight ? Color.FromArgb(105, 255, 220, 0) : Colors.Red,
@@ -73,23 +88,79 @@ public partial class ScreenshotEditorWindow : Window
             IgnorePressure = true,
             IsHighlighter = tool == EditorTool.Highlight
         };
+        UpdateActiveToolButton();
+    }
+
+    private void UpdateActiveToolButton()
+    {
+        foreach (var button in new[]
+                 {
+                     PenButton, HighlightButton, ArrowButton, LineButton, RectangleButton, EllipseButton,
+                     TextButton, NumberButton, BlurButton, PixelateButton, EraseButton, SelectButton
+                 })
+            button.Tag = null;
+
+        Button active = _tool switch
+        {
+            EditorTool.Pen => PenButton,
+            EditorTool.Highlight => HighlightButton,
+            EditorTool.Arrow => ArrowButton,
+            EditorTool.Line => LineButton,
+            EditorTool.Rectangle => RectangleButton,
+            EditorTool.Ellipse => EllipseButton,
+            EditorTool.Text => TextButton,
+            EditorTool.Number => NumberButton,
+            EditorTool.Blur => BlurButton,
+            EditorTool.Pixelate => PixelateButton,
+            EditorTool.Erase => EraseButton,
+            _ => SelectButton
+        };
+        active.Tag = "Active";
     }
 
     private void Pen_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Pen);
     private void Highlight_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Highlight);
     private void Erase_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Erase);
     private void Select_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Select);
+    private void Arrow_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Arrow);
+    private void Line_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Line);
+    private void Rectangle_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Rectangle);
+    private void Ellipse_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Ellipse);
+    private void Text_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Text);
+    private void Number_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Number);
+    private void Blur_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Blur);
+    private void Pixelate_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Pixelate);
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.Z && (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
-        { Redo_Click(this, new RoutedEventArgs()); e.Handled = true; }
+        if (e.Key == Key.Escape)
+        {
+            Close();
+            e.Handled = true;
+            return;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.Z &&
+            (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+        {
+            Redo_Click(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
         else if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.Z)
-        { Undo_Click(this, new RoutedEventArgs()); e.Handled = true; }
+        {
+            Undo_Click(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
         else if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && e.Key == Key.Y)
-        { Redo_Click(this, new RoutedEventArgs()); e.Handled = true; }
+        {
+            Redo_Click(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
         else if (e.Key == Key.Delete)
-        { DeleteSelection(); e.Handled = true; }
+        {
+            DeleteSelection();
+            e.Handled = true;
+        }
         else if (e.Key == Key.Space && Keyboard.Modifiers == ModifierKeys.None)
         {
             CopyAndClose();
@@ -101,26 +172,17 @@ public partial class ScreenshotEditorWindow : Window
 
     private void DeleteSelection()
     {
-        if (AnnotationCanvas.GetSelectedStrokes().Count == 0 && AnnotationCanvas.GetSelectedElements().Count == 0) return;
+        if (AnnotationCanvas.GetSelectedStrokes().Count == 0 && AnnotationCanvas.GetSelectedElements().Count == 0)
+            return;
+
         SaveUndoPoint();
         AnnotationCanvas.GetSelectedStrokes().Clear();
         foreach (var element in AnnotationCanvas.GetSelectedElements().Cast<UIElement>().ToArray())
             AnnotationCanvas.Children.Remove(element);
     }
-    private void Arrow_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Arrow);
-    private void Line_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Line);
-    private void Rectangle_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Rectangle);
-    private void Ellipse_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Ellipse);
-    private void Text_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Text);
-    private void Number_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Number);
-    private void Blur_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Blur);
-    private void Pixelate_Click(object sender, RoutedEventArgs e) => SetTool(EditorTool.Pixelate);
 
     private BitmapSource RenderAnnotatedImage()
     {
-        // Keep the source bitmap's pixel dimensions and DPI. Rendering at 96 DPI using
-        // DIP dimensions silently downsamples high-DPI screenshots and changes their
-        // coordinate system after the first undo point.
         var source = PreviewImage.Source as BitmapSource;
         var pixelWidth = source?.PixelWidth ?? Math.Max(1, (int)Math.Ceiling(PreviewSurface.Width));
         var pixelHeight = source?.PixelHeight ?? Math.Max(1, (int)Math.Ceiling(PreviewSurface.Height));
@@ -162,14 +224,16 @@ public partial class ScreenshotEditorWindow : Window
 
     private void Undo_Click(object sender, RoutedEventArgs e)
     {
-        if (_undo.Count == 0) return;
+        if (_undo.Count == 0)
+            return;
         _redo.Push(RenderAnnotatedImage());
         ApplySnapshot(_undo.Pop());
     }
 
     private void Redo_Click(object sender, RoutedEventArgs e)
     {
-        if (_redo.Count == 0) return;
+        if (_redo.Count == 0)
+            return;
         _undo.Push(RenderAnnotatedImage());
         ApplySnapshot(_redo.Pop());
     }
@@ -181,23 +245,30 @@ public partial class ScreenshotEditorWindow : Window
 
     private void AnnotationCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        var position = e.GetPosition(AnnotationCanvas);
+
         if (_tool is EditorTool.Pen or EditorTool.Highlight)
         {
             _beforeAction = RenderAnnotatedImage();
             _drawing = true;
             return;
         }
+
         if (_tool == EditorTool.Erase)
         {
             _beforeAction = RenderAnnotatedImage();
             _drawing = true;
             _eraseChanged = false;
-            EraseAt(e.GetPosition(AnnotationCanvas));
+            EraseAt(position);
             AnnotationCanvas.CaptureMouse();
             e.Handled = true;
             return;
         }
-        _start = e.GetPosition(AnnotationCanvas);
+
+        if (_tool == EditorTool.Select)
+            return;
+
+        _start = position;
         _beforeAction = RenderAnnotatedImage();
         _drawing = true;
 
@@ -207,13 +278,19 @@ public partial class ScreenshotEditorWindow : Window
             if (!string.IsNullOrWhiteSpace(text))
             {
                 SaveUndoPointFrom(_beforeAction);
-                AnnotationCanvas.Children.Add(new TextBlock
+                var block = new TextBlock
                 {
-                    Text = text, FontSize = 24, FontWeight = FontWeights.Bold,
-                    Foreground = Brushes.Red, Background = Brushes.Transparent
-                }.WithPosition(_start));
+                    Text = text,
+                    FontSize = 24,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = Brushes.Red,
+                    Background = Brushes.Transparent
+                };
+                PlaceElement(block, _start.X, _start.Y);
+                AnnotationCanvas.Children.Add(block);
             }
             _drawing = false;
+            e.Handled = true;
             return;
         }
 
@@ -222,16 +299,26 @@ public partial class ScreenshotEditorWindow : Window
             SaveUndoPointFrom(_beforeAction);
             var marker = new Border
             {
-                Width = 34, Height = 34, CornerRadius = new CornerRadius(17),
-                Background = Brushes.Red, BorderBrush = Brushes.White, BorderThickness = new Thickness(2),
-                Child = new TextBlock { Text = (_stepNumber++).ToString(), Foreground = Brushes.White,
-                    FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center }
+                Width = 34,
+                Height = 34,
+                CornerRadius = new CornerRadius(17),
+                Background = Brushes.Red,
+                BorderBrush = Brushes.White,
+                BorderThickness = new Thickness(2),
+                Child = new TextBlock
+                {
+                    Text = (_stepNumber++).ToString(),
+                    Foreground = Brushes.White,
+                    FontSize = 18,
+                    FontWeight = FontWeights.Bold,
+                    TextAlignment = TextAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
             };
+            PlaceElement(marker, _start.X - 17, _start.Y - 17);
             AnnotationCanvas.Children.Add(marker);
-            Canvas.SetLeft(marker, _start.X - 17);
-            Canvas.SetTop(marker, _start.Y - 17);
             _drawing = false;
+            e.Handled = true;
             return;
         }
 
@@ -239,20 +326,33 @@ public partial class ScreenshotEditorWindow : Window
         {
             _previewShape = CreateShape(_tool);
             AnnotationCanvas.Children.Add(_previewShape);
-            UpdateShape(e.GetPosition(AnnotationCanvas));
+            UpdateShape(position);
+            AnnotationCanvas.CaptureMouse();
+            e.Handled = true;
+            return;
         }
-        else if (_tool is EditorTool.Blur or EditorTool.Pixelate)
+
+        if (_tool is EditorTool.Blur or EditorTool.Pixelate)
         {
-            _previewShape = new Rectangle { Stroke = Brushes.OrangeRed, StrokeDashArray = new DoubleCollection { 3, 2 }, StrokeThickness = 2, Fill = new SolidColorBrush(Color.FromArgb(35, 255, 120, 0)) };
+            _previewShape = new Rectangle
+            {
+                Stroke = Brushes.OrangeRed,
+                StrokeDashArray = new DoubleCollection { 3, 2 },
+                StrokeThickness = 2,
+                Fill = new SolidColorBrush(Color.FromArgb(35, 255, 120, 0))
+            };
             AnnotationCanvas.Children.Add(_previewShape);
-            UpdateShape(e.GetPosition(AnnotationCanvas));
+            UpdateShape(position);
+            AnnotationCanvas.CaptureMouse();
+            e.Handled = true;
         }
-        AnnotationCanvas.CaptureMouse();
     }
 
     private void AnnotationCanvas_MouseMove(object sender, MouseEventArgs e)
     {
-        if (!_drawing) return;
+        if (!_drawing)
+            return;
+
         var position = e.GetPosition(AnnotationCanvas);
         if (_tool == EditorTool.Erase)
         {
@@ -260,101 +360,147 @@ public partial class ScreenshotEditorWindow : Window
             e.Handled = true;
         }
         else if (_previewShape is not null)
+        {
             UpdateShape(position);
+            e.Handled = true;
+        }
     }
 
     private void AnnotationCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (!_drawing) return;
+        if (!_drawing)
+            return;
+
         if (_tool is EditorTool.Pen or EditorTool.Highlight)
         {
             _drawing = false;
-            if (_beforeAction is not null) SaveUndoPointFrom(_beforeAction);
+            if (_beforeAction is not null)
+                SaveUndoPointFrom(_beforeAction);
             return;
         }
+
         if (_tool == EditorTool.Erase)
         {
             AnnotationCanvas.ReleaseMouseCapture();
             _drawing = false;
-            if (_beforeAction is not null && _eraseChanged) SaveUndoPointFrom(_beforeAction);
+            if (_beforeAction is not null && _eraseChanged)
+                SaveUndoPointFrom(_beforeAction);
             _eraseChanged = false;
             e.Handled = true;
             return;
         }
-        if (_previewShape is null) return;
+
+        if (_previewShape is null)
+        {
+            _drawing = false;
+            return;
+        }
+
         AnnotationCanvas.ReleaseMouseCapture();
         var end = e.GetPosition(AnnotationCanvas);
         UpdateShape(end);
         AnnotationCanvas.Children.Remove(_previewShape);
         _previewShape = null;
         _drawing = false;
+        e.Handled = true;
 
         var rect = MakeRect(_start, end);
-        if (rect.Width < 3 || rect.Height < 3) return;
+        if (rect.Width < 3 || rect.Height < 3)
+            return;
 
         if (_tool is EditorTool.Blur or EditorTool.Pixelate)
         {
-            if (_beforeAction is not null) SaveUndoPointFrom(_beforeAction);
+            if (_beforeAction is not null)
+                SaveUndoPointFrom(_beforeAction);
             ApplyMosaic(rect, _tool == EditorTool.Blur ? 7 : 16);
             return;
         }
 
-        if (_beforeAction is not null) SaveUndoPointFrom(_beforeAction);
+        if (_beforeAction is not null)
+            SaveUndoPointFrom(_beforeAction);
+
         var shape = CreateShape(_tool);
         if (shape is Line line)
         {
-            line.X1 = _start.X; line.Y1 = _start.Y; line.X2 = end.X; line.Y2 = end.Y;
+            line.X1 = _start.X;
+            line.Y1 = _start.Y;
+            line.X2 = end.X;
+            line.Y2 = end.Y;
+            PlaceElement(shape, 0, 0);
+        }
+        else if (shape is Path arrow)
+        {
+            PlaceElement(arrow, 0, 0);
+            arrow.Data = BuildArrowGeometry(_start, end);
         }
         else
         {
-            if (shape is Path arrow)
-            {
-                Canvas.SetLeft(shape, 0); Canvas.SetTop(shape, 0);
-                arrow.Data = BuildArrowGeometry(_start, end);
-            }
-            else
-            {
-                Canvas.SetLeft(shape, rect.Left); Canvas.SetTop(shape, rect.Top);
-                shape.Width = rect.Width; shape.Height = rect.Height;
-            }
+            PlaceElement(shape, rect.Left, rect.Top);
+            shape.Width = rect.Width;
+            shape.Height = rect.Height;
         }
+
         AnnotationCanvas.Children.Add(shape);
     }
 
     private static Shape CreateShape(EditorTool tool) => tool switch
     {
         EditorTool.Line => new Line { Stroke = Brushes.Red, StrokeThickness = 3 },
-        EditorTool.Arrow => new Path { Stroke = Brushes.Red, StrokeThickness = 3, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Fill = Brushes.Red },
+        EditorTool.Arrow => new Path
+        {
+            Stroke = Brushes.Red,
+            StrokeThickness = 3,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            StrokeLineJoin = PenLineJoin.Round,
+            Fill = Brushes.Red
+        },
         EditorTool.Ellipse => new Ellipse { Stroke = Brushes.Red, StrokeThickness = 3, Fill = Brushes.Transparent },
         _ => new Rectangle { Stroke = Brushes.Red, StrokeThickness = 3, Fill = Brushes.Transparent }
     };
 
     private void UpdateShape(Point end)
     {
-        if (_previewShape is null) return;
+        if (_previewShape is null)
+            return;
+
         var rect = MakeRect(_start, end);
         if (_previewShape is Line line)
         {
-            line.X1 = _start.X; line.Y1 = _start.Y; line.X2 = end.X; line.Y2 = end.Y;
+            PlaceElement(line, 0, 0);
+            line.X1 = _start.X;
+            line.Y1 = _start.Y;
+            line.X2 = end.X;
+            line.Y2 = end.Y;
         }
         else if (_previewShape is Path arrow)
         {
-            Canvas.SetLeft(arrow, 0); Canvas.SetTop(arrow, 0);
+            PlaceElement(arrow, 0, 0);
             arrow.Data = BuildArrowGeometry(_start, end);
         }
         else
         {
-            Canvas.SetLeft(_previewShape, rect.Left); Canvas.SetTop(_previewShape, rect.Top);
+            PlaceElement(_previewShape, rect.Left, rect.Top);
             _previewShape.Width = Math.Max(1, rect.Width);
             _previewShape.Height = Math.Max(1, rect.Height);
         }
+    }
+
+    private static void PlaceElement(UIElement element, double left, double top)
+    {
+        // InkCanvas ignores Canvas.Left/Top. Use its own attached properties so shapes
+        // follow the pointer instead of sticking to the top-left corner.
+        InkCanvas.SetLeft(element, left);
+        InkCanvas.SetTop(element, top);
     }
 
     private static Geometry BuildArrowGeometry(Point start, Point end)
     {
         double dx = end.X - start.X, dy = end.Y - start.Y;
         double length = Math.Sqrt(dx * dx + dy * dy);
-        if (length < 1) return Geometry.Empty;
+        if (length < 1)
+            return Geometry.Empty;
+
         double ux = dx / length, uy = dy / length;
         double headLength = Math.Min(22, Math.Max(12, length * 0.28));
         double halfWidth = headLength * 0.55;
@@ -383,7 +529,8 @@ public partial class ScreenshotEditorWindow : Window
                 var bounds = element is Shape shape
                     ? shape.RenderedGeometry.Bounds
                     : new Rect(0, 0, element.RenderSize.Width, element.RenderSize.Height);
-                double left = Canvas.GetLeft(element), top = Canvas.GetTop(element);
+                var left = InkCanvas.GetLeft(element);
+                var top = InkCanvas.GetTop(element);
                 if (double.IsNaN(left)) left = 0;
                 if (double.IsNaN(top)) top = 0;
                 var hitBounds = new Rect(left + bounds.Left, top + bounds.Top,
@@ -391,11 +538,13 @@ public partial class ScreenshotEditorWindow : Window
                 hitBounds.Inflate(radius, radius);
                 return hitBounds.Contains(point);
             }).ToArray();
+
         foreach (var element in hitElements)
         {
             AnnotationCanvas.Children.Remove(element);
             _eraseChanged = true;
         }
+
         var hitStrokes = AnnotationCanvas.Strokes.Where(stroke =>
             stroke.HitTest(point, (int)(radius * 2))).ToArray();
         foreach (var stroke in hitStrokes)
@@ -417,12 +566,9 @@ public partial class ScreenshotEditorWindow : Window
     private void ApplyMosaic(Rect selection, int block)
     {
         var source = PreviewImage.Source as BitmapSource;
-        if (source is null) return;
-        // AnnotationCanvas coordinates are WPF DIPs; convert them to source bitmap pixels.
-        // This keeps the effect exactly under the user's drag selection at any display DPI.
-        // Pointer positions are measured in the InkCanvas' local WPF-DIP space.
-        // Use that exact overlay size as the transform source (not the outer Grid or
-        // ScrollViewer viewport), then clamp before converting to bitmap pixels.
+        if (source is null)
+            return;
+
         var overlayWidth = Math.Max(1d, AnnotationCanvas.Width);
         var overlayHeight = Math.Max(1d, AnnotationCanvas.Height);
         var scaleX = source.PixelWidth / overlayWidth;
@@ -453,12 +599,20 @@ public partial class ScreenshotEditorWindow : Window
             for (int px = bx * block; px < Math.Min(w, (bx + 1) * block); px++)
             {
                 int i = py * stride + px * 4;
-                bsum += pixels[i]; gsum += pixels[i + 1]; rsum += pixels[i + 2]; asum += pixels[i + 3]; count++;
+                bsum += pixels[i];
+                gsum += pixels[i + 1];
+                rsum += pixels[i + 2];
+                asum += pixels[i + 3];
+                count++;
             }
+
             int o = (by * smallW + bx) * 4;
-            small[o] = (byte)(bsum / count); small[o + 1] = (byte)(gsum / count);
-            small[o + 2] = (byte)(rsum / count); small[o + 3] = (byte)(asum / count);
+            small[o] = (byte)(bsum / count);
+            small[o + 1] = (byte)(gsum / count);
+            small[o + 2] = (byte)(rsum / count);
+            small[o + 3] = (byte)(asum / count);
         }
+
         var effect = new WriteableBitmap(w, h, source.DpiX, source.DpiY, PixelFormats.Bgra32, null);
         var expanded = new byte[h * stride];
         for (int py = 0; py < h; py++)
@@ -467,6 +621,7 @@ public partial class ScreenshotEditorWindow : Window
             int src = ((py / block) * smallW + (px / block)) * 4;
             Buffer.BlockCopy(small, src, expanded, py * stride + px * 4, 4);
         }
+
         effect.WritePixels(new Int32Rect(0, 0, w, h), expanded, stride, 0);
         effect.Freeze();
         var full = new DrawingVisual();
@@ -475,23 +630,42 @@ public partial class ScreenshotEditorWindow : Window
             dc.DrawImage(source, new Rect(0, 0, source.PixelWidth, source.PixelHeight));
             dc.DrawImage(effect, new Rect(x, y, w, h));
         }
+
         var rendered = new RenderTargetBitmap(source.PixelWidth, source.PixelHeight, source.DpiX, source.DpiY, PixelFormats.Pbgra32);
-        rendered.Render(full); rendered.Freeze();
+        rendered.Render(full);
+        rendered.Freeze();
         ApplySnapshot(rendered);
     }
 
-    private static string? PromptForText(string title, string prompt)
+    private string? PromptForText(string title, string prompt)
     {
-        var dialog = new Window { Title = title, Width = 360, Height = 150, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            ResizeMode = ResizeMode.NoResize, WindowStyle = WindowStyle.ToolWindow };
+        var dialog = new Window
+        {
+            Title = title,
+            Width = 360,
+            Height = 150,
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStyle = WindowStyle.ToolWindow,
+            Topmost = true
+        };
         var panel = new StackPanel { Margin = new Thickness(12) };
         panel.Children.Add(new TextBlock { Text = prompt, Margin = new Thickness(0, 0, 0, 8) });
         var input = new TextBox { FontSize = 14 };
         panel.Children.Add(input);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 10, 0, 0)
+        };
         var ok = new Button { Content = "Add", IsDefault = true, Width = 70, Margin = new Thickness(0, 0, 6, 0) };
         var cancel = new Button { Content = "Cancel", IsCancel = true, Width = 70 };
-        buttons.Children.Add(ok); buttons.Children.Add(cancel); panel.Children.Add(buttons); dialog.Content = panel;
+        buttons.Children.Add(ok);
+        buttons.Children.Add(cancel);
+        panel.Children.Add(buttons);
+        dialog.Content = panel;
         ok.Click += (_, _) => dialog.DialogResult = true;
         return dialog.ShowDialog() == true ? input.Text : null;
     }
@@ -515,9 +689,17 @@ public partial class ScreenshotEditorWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.SaveFileDialog { Title = "Save screenshot", Filter = "PNG image (*.png)|*.png",
-            DefaultExt = ".png", AddExtension = true, FileName = $"ClipShot-{DateTime.Now:yyyyMMdd-HHmmss}.png" };
-        if (dialog.ShowDialog(this) != true) return;
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Save screenshot",
+            Filter = "PNG image (*.png)|*.png",
+            DefaultExt = ".png",
+            AddExtension = true,
+            FileName = $"ClipShot-{DateTime.Now:yyyyMMdd-HHmmss}.png"
+        };
+        if (dialog.ShowDialog(this) != true)
+            return;
+
         try
         {
             var encoder = new PngBitmapEncoder();
@@ -527,18 +709,11 @@ public partial class ScreenshotEditorWindow : Window
             WasSaved = true;
             Close();
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Save error", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Save error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
-}
-
-internal static class FrameworkElementExtensions
-{
-    public static T WithPosition<T>(this T element, Point point) where T : FrameworkElement
-    {
-        Canvas.SetLeft(element, point.X);
-        Canvas.SetTop(element, point.Y);
-        return element;
-    }
 }
