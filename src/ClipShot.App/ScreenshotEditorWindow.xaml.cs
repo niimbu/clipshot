@@ -37,6 +37,9 @@ public partial class ScreenshotEditorWindow : Window
     private int _stepNumber = 1;
     private bool _drawing;
     private bool _eraseChanged;
+    private Border? _inlineTextHost;
+    private TextBox? _inlineTextBox;
+    private BitmapSource? _inlineTextUndo;
 
     public bool WasCopied { get; private set; }
     public bool WasSaved { get; private set; }
@@ -65,18 +68,24 @@ public partial class ScreenshotEditorWindow : Window
 
     private void SetTool(EditorTool tool)
     {
+        CommitInlineText(save: true);
         _tool = tool;
         AnnotationCanvas.EditingMode = tool switch
         {
             EditorTool.Pen or EditorTool.Highlight => InkCanvasEditingMode.Ink,
-            EditorTool.Erase => InkCanvasEditingMode.None,
+            EditorTool.Erase => InkCanvasEditingMode.EraseByPoint,
             EditorTool.Select => InkCanvasEditingMode.Select,
             _ => InkCanvasEditingMode.None
         };
+        if (tool == EditorTool.Erase)
+            AnnotationCanvas.EraserShape = new EllipseStylusShape(22, 22);
+
         AnnotationCanvas.Cursor = tool switch
         {
-            EditorTool.Blur or EditorTool.Pixelate or EditorTool.Rectangle or EditorTool.Ellipse => Cursors.Cross,
+            EditorTool.Blur or EditorTool.Pixelate or EditorTool.Rectangle or EditorTool.Ellipse or EditorTool.Arrow or EditorTool.Line => Cursors.Cross,
+            EditorTool.Erase => Cursors.Cross,
             EditorTool.Select => Cursors.Arrow,
+            EditorTool.Text or EditorTool.Number => Cursors.IBeam,
             _ => Cursors.Pen
         };
         AnnotationCanvas.DefaultDrawingAttributes = new DrawingAttributes
@@ -133,6 +142,9 @@ public partial class ScreenshotEditorWindow : Window
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (_inlineTextHost is not null && e.Key is Key.Enter or Key.Escape)
+            return;
+
         if (e.Key == Key.Escape)
         {
             Close();
@@ -172,13 +184,32 @@ public partial class ScreenshotEditorWindow : Window
 
     private void DeleteSelection()
     {
-        if (AnnotationCanvas.GetSelectedStrokes().Count == 0 && AnnotationCanvas.GetSelectedElements().Count == 0)
-            return;
+        CommitInlineText(save: false);
 
-        SaveUndoPoint();
-        AnnotationCanvas.GetSelectedStrokes().Clear();
-        foreach (var element in AnnotationCanvas.GetSelectedElements().Cast<UIElement>().ToArray())
-            AnnotationCanvas.Children.Remove(element);
+        var selectedStrokes = AnnotationCanvas.GetSelectedStrokes();
+        var selectedElements = AnnotationCanvas.GetSelectedElements().Cast<UIElement>().ToArray();
+        if (selectedStrokes.Count > 0 || selectedElements.Length > 0)
+        {
+            SaveUndoPoint();
+            selectedStrokes.Clear();
+            foreach (var element in selectedElements)
+                AnnotationCanvas.Children.Remove(element);
+            return;
+        }
+
+        // Nothing selected: remove the most recent annotation so Delete always does something useful.
+        if (AnnotationCanvas.Children.Count > 0)
+        {
+            SaveUndoPoint();
+            AnnotationCanvas.Children.RemoveAt(AnnotationCanvas.Children.Count - 1);
+            return;
+        }
+
+        if (AnnotationCanvas.Strokes.Count > 0)
+        {
+            SaveUndoPoint();
+            AnnotationCanvas.Strokes.RemoveAt(AnnotationCanvas.Strokes.Count - 1);
+        }
     }
 
     private BitmapSource RenderAnnotatedImage()
@@ -243,9 +274,23 @@ public partial class ScreenshotEditorWindow : Window
         // Stroke undo is captured on pointer-down so the complete previous state is retained.
     }
 
+    private void AnnotationCanvas_StrokeErasing(object sender, InkCanvasStrokeErasingEventArgs e)
+    {
+        if (!_drawing)
+        {
+            _beforeAction = RenderAnnotatedImage();
+            _drawing = true;
+            _eraseChanged = false;
+        }
+        _eraseChanged = true;
+    }
+
     private void AnnotationCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         var position = e.GetPosition(AnnotationCanvas);
+
+        if (_inlineTextHost is not null && !_inlineTextHost.IsMouseOver)
+            CommitInlineText(save: true);
 
         if (_tool is EditorTool.Pen or EditorTool.Highlight)
         {
@@ -259,9 +304,9 @@ public partial class ScreenshotEditorWindow : Window
             _beforeAction = RenderAnnotatedImage();
             _drawing = true;
             _eraseChanged = false;
-            EraseAt(position);
-            AnnotationCanvas.CaptureMouse();
-            e.Handled = true;
+            EraseElementsAt(position);
+            // Do not capture the mouse — EraseByPoint needs the normal ink routing for strokes.
+            e.Handled = false;
             return;
         }
 
@@ -274,21 +319,7 @@ public partial class ScreenshotEditorWindow : Window
 
         if (_tool == EditorTool.Text)
         {
-            var text = PromptForText("Add text", "Enter annotation text:");
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                SaveUndoPointFrom(_beforeAction);
-                var block = new TextBlock
-                {
-                    Text = text,
-                    FontSize = 24,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = Brushes.Red,
-                    Background = Brushes.Transparent
-                };
-                PlaceElement(block, _start.X, _start.Y);
-                AnnotationCanvas.Children.Add(block);
-            }
+            BeginInlineText(position);
             _drawing = false;
             e.Handled = true;
             return;
@@ -356,8 +387,8 @@ public partial class ScreenshotEditorWindow : Window
         var position = e.GetPosition(AnnotationCanvas);
         if (_tool == EditorTool.Erase)
         {
-            EraseAt(position);
-            e.Handled = true;
+            EraseElementsAt(position);
+            e.Handled = false;
         }
         else if (_previewShape is not null)
         {
@@ -381,12 +412,11 @@ public partial class ScreenshotEditorWindow : Window
 
         if (_tool == EditorTool.Erase)
         {
-            AnnotationCanvas.ReleaseMouseCapture();
             _drawing = false;
             if (_beforeAction is not null && _eraseChanged)
                 SaveUndoPointFrom(_beforeAction);
             _eraseChanged = false;
-            e.Handled = true;
+            e.Handled = false;
             return;
         }
 
@@ -519,39 +549,153 @@ public partial class ScreenshotEditorWindow : Window
         return geometry;
     }
 
-    private void EraseAt(Point point)
+    private void EraseElementsAt(Point point)
     {
-        const double radius = 14;
+        const double radius = 18;
         var hitElements = AnnotationCanvas.Children.Cast<UIElement>()
-            .Where(element => element is Shape || element is TextBlock || element is Border)
-            .Where(element =>
-            {
-                var bounds = element is Shape shape
-                    ? shape.RenderedGeometry.Bounds
-                    : new Rect(0, 0, element.RenderSize.Width, element.RenderSize.Height);
-                var left = InkCanvas.GetLeft(element);
-                var top = InkCanvas.GetTop(element);
-                if (double.IsNaN(left)) left = 0;
-                if (double.IsNaN(top)) top = 0;
-                var hitBounds = new Rect(left + bounds.Left, top + bounds.Top,
-                    Math.Max(bounds.Width, 1), Math.Max(bounds.Height, 1));
-                hitBounds.Inflate(radius, radius);
-                return hitBounds.Contains(point);
-            }).ToArray();
+            .Where(element => element is not Border host || host != _inlineTextHost)
+            .Where(element => element is Shape or TextBlock or Border)
+            .Where(element => HitTestAnnotation(element, point, radius))
+            .ToArray();
 
         foreach (var element in hitElements)
         {
             AnnotationCanvas.Children.Remove(element);
             _eraseChanged = true;
         }
+    }
 
-        var hitStrokes = AnnotationCanvas.Strokes.Where(stroke =>
-            stroke.HitTest(point, (int)(radius * 2))).ToArray();
-        foreach (var stroke in hitStrokes)
+    private static bool HitTestAnnotation(UIElement element, Point point, double radius)
+    {
+        var left = InkCanvas.GetLeft(element);
+        var top = InkCanvas.GetTop(element);
+        if (double.IsNaN(left)) left = 0;
+        if (double.IsNaN(top)) top = 0;
+
+        Rect bounds;
+        if (element is Line line)
         {
-            AnnotationCanvas.Strokes.Remove(stroke);
-            _eraseChanged = true;
+            bounds = new Rect(
+                Math.Min(line.X1, line.X2),
+                Math.Min(line.Y1, line.Y2),
+                Math.Max(1, Math.Abs(line.X2 - line.X1)),
+                Math.Max(1, Math.Abs(line.Y2 - line.Y1)));
         }
+        else if (element is Shape shape)
+        {
+            var geometryBounds = shape.RenderedGeometry.Bounds;
+            if (geometryBounds.IsEmpty)
+                bounds = new Rect(0, 0, Math.Max(1, shape.Width), Math.Max(1, shape.Height));
+            else
+                bounds = geometryBounds;
+        }
+        else
+        {
+            element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var size = element.DesiredSize;
+            if (size.Width < 1 || size.Height < 1)
+                size = element.RenderSize;
+            bounds = new Rect(0, 0, Math.Max(size.Width, 8), Math.Max(size.Height, 8));
+        }
+
+        var hitBounds = new Rect(left + bounds.Left, top + bounds.Top,
+            Math.Max(bounds.Width, 1), Math.Max(bounds.Height, 1));
+        hitBounds.Inflate(radius, radius);
+        return hitBounds.Contains(point);
+    }
+
+    private void BeginInlineText(Point position)
+    {
+        CommitInlineText(save: true);
+        _inlineTextUndo = _beforeAction;
+
+        _inlineTextBox = new TextBox
+        {
+            MinWidth = 140,
+            FontSize = 22,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brushes.Red,
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            CaretBrush = Brushes.Red,
+            Padding = new Thickness(2, 0, 2, 0)
+        };
+        _inlineTextBox.KeyDown += InlineTextBox_KeyDown;
+        _inlineTextBox.LostKeyboardFocus += (_, _) => CommitInlineText(save: true);
+
+        _inlineTextHost = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(36, 255, 255, 255)),
+            BorderBrush = Brushes.Red,
+            BorderThickness = new Thickness(1.5),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(6, 4, 6, 4),
+            Child = _inlineTextBox
+        };
+
+        PlaceElement(_inlineTextHost, position.X, position.Y);
+        AnnotationCanvas.Children.Add(_inlineTextHost);
+        Dispatcher.BeginInvoke(() =>
+        {
+            _inlineTextBox?.Focus();
+            Keyboard.Focus(_inlineTextBox);
+        });
+    }
+
+    private void InlineTextBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            CommitInlineText(save: true);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CommitInlineText(save: false);
+            e.Handled = true;
+        }
+    }
+
+    private void CommitInlineText(bool save)
+    {
+        if (_inlineTextHost is null)
+            return;
+
+        var text = _inlineTextBox?.Text?.Trim() ?? string.Empty;
+        var left = InkCanvas.GetLeft(_inlineTextHost);
+        var top = InkCanvas.GetTop(_inlineTextHost);
+        if (double.IsNaN(left)) left = 0;
+        if (double.IsNaN(top)) top = 0;
+
+        if (_inlineTextBox is not null)
+            _inlineTextBox.KeyDown -= InlineTextBox_KeyDown;
+
+        AnnotationCanvas.Children.Remove(_inlineTextHost);
+        _inlineTextHost = null;
+        _inlineTextBox = null;
+
+        if (!save || string.IsNullOrWhiteSpace(text))
+        {
+            _inlineTextUndo = null;
+            return;
+        }
+
+        if (_inlineTextUndo is not null)
+            SaveUndoPointFrom(_inlineTextUndo);
+        else
+            SaveUndoPoint();
+
+        var block = new TextBlock
+        {
+            Text = text,
+            FontSize = 22,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brushes.Red,
+            Background = Brushes.Transparent
+        };
+        PlaceElement(block, left, top);
+        AnnotationCanvas.Children.Add(block);
+        _inlineTextUndo = null;
     }
 
     private static Rect MakeRect(Point a, Point b) =>
@@ -637,43 +781,11 @@ public partial class ScreenshotEditorWindow : Window
         ApplySnapshot(rendered);
     }
 
-    private string? PromptForText(string title, string prompt)
-    {
-        var dialog = new Window
-        {
-            Title = title,
-            Width = 360,
-            Height = 150,
-            Owner = this,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            ResizeMode = ResizeMode.NoResize,
-            WindowStyle = WindowStyle.ToolWindow,
-            Topmost = true
-        };
-        var panel = new StackPanel { Margin = new Thickness(12) };
-        panel.Children.Add(new TextBlock { Text = prompt, Margin = new Thickness(0, 0, 0, 8) });
-        var input = new TextBox { FontSize = 14 };
-        panel.Children.Add(input);
-        var buttons = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Margin = new Thickness(0, 10, 0, 0)
-        };
-        var ok = new Button { Content = "Add", IsDefault = true, Width = 70, Margin = new Thickness(0, 0, 6, 0) };
-        var cancel = new Button { Content = "Cancel", IsCancel = true, Width = 70 };
-        buttons.Children.Add(ok);
-        buttons.Children.Add(cancel);
-        panel.Children.Add(buttons);
-        dialog.Content = panel;
-        ok.Click += (_, _) => dialog.DialogResult = true;
-        return dialog.ShowDialog() == true ? input.Text : null;
-    }
-
     private void Copy_Click(object sender, RoutedEventArgs e) => CopyAndClose();
 
     private void CopyAndClose()
     {
+        CommitInlineText(save: true);
         try
         {
             var image = RenderAnnotatedImage();
@@ -689,6 +801,7 @@ public partial class ScreenshotEditorWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
+        CommitInlineText(save: true);
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
             Title = "Save screenshot",

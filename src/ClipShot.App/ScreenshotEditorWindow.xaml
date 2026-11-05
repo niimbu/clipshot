@@ -21,7 +21,6 @@
             <Setter Property="MinWidth" Value="36"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="1"/>
-            <Setter Property="FontSize" Value="15"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -31,12 +30,10 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bd"
-                                Background="{TemplateBinding Background}"
+                        <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="9"
-                                Padding="{TemplateBinding Padding}"
                                 SnapsToDevicePixels="True">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
@@ -77,6 +74,21 @@
             <Setter Property="Margin" Value="6,0"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
+        <Style x:Key="ToolIcon" TargetType="Path">
+            <Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+            <Setter Property="StrokeThickness" Value="1.7"/>
+            <Setter Property="StrokeStartLineCap" Value="Round"/>
+            <Setter Property="StrokeEndLineCap" Value="Round"/>
+            <Setter Property="StrokeLineJoin" Value="Round"/>
+            <Setter Property="Fill" Value="Transparent"/>
+            <Setter Property="Stretch" Value="Uniform"/>
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="16"/>
+        </Style>
+        <Style x:Key="ToolIconFill" TargetType="Path" BasedOn="{StaticResource ToolIcon}">
+            <Setter Property="Fill" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+            <Setter Property="StrokeThickness" Value="1.2"/>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -85,10 +97,7 @@
                       Background="Transparent"
                       Padding="24,24,24,96">
             <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Border Background="#0A0C10"
-                        CornerRadius="4"
-                        Padding="1"
-                        SnapsToDevicePixels="True">
+                <Border Background="#0A0C10" CornerRadius="4" Padding="1" SnapsToDevicePixels="True">
                     <Border.Effect>
                         <DropShadowEffect BlurRadius="28" ShadowDepth="0" Opacity="0.45" Color="Black"/>
                     </Border.Effect>
@@ -100,7 +109,8 @@
                                    PreviewMouseLeftButtonDown="AnnotationCanvas_MouseLeftButtonDown"
                                    PreviewMouseMove="AnnotationCanvas_MouseMove"
                                    PreviewMouseLeftButtonUp="AnnotationCanvas_MouseLeftButtonUp"
-                                   StrokeCollected="AnnotationCanvas_StrokeCollected"/>
+                                   StrokeCollected="AnnotationCanvas_StrokeCollected"
+                                   StrokeErasing="AnnotationCanvas_StrokeErasing"/>
                     </Grid>
                 </Border>
             </Grid>
@@ -113,71 +123,77 @@
                 BorderBrush="#33FFFFFF"
                 BorderThickness="1"
                 CornerRadius="16"
-                Padding="8,6"
-                IsHitTestVisible="True">
+                Padding="8,6">
             <Border.Effect>
                 <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.4" Color="Black"/>
             </Border.Effect>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="PenButton" Click="Pen_Click" ToolTip="Pen" Style="{StaticResource EditorToolButton}" Tag="Active" AutomationProperties.Name="Pen">
-                    <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Data="M4,16 L6,10 L14,2 L18,6 L10,14 Z M14,2 L17,1 L19,3 L18,6"/>
                 </Button>
                 <Button x:Name="HighlightButton" Click="Highlight_Click" ToolTip="Highlight" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Highlight">
-                    <TextBlock Text="&#xEA3F;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Data="M5,15 L9,3 L13,3 L9,15 Z M4,17 H14"/>
                 </Button>
                 <Button x:Name="ArrowButton" Click="Arrow_Click" ToolTip="Arrow" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Arrow">
-                    <TextBlock Text="&#xE72A;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Data="M3,17 L17,3 M10,3 H17 V10"/>
                 </Button>
                 <Button x:Name="LineButton" Click="Line_Click" ToolTip="Line" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Line">
-                    <TextBlock Text="&#xEADF;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Data="M3,17 L17,3"/>
                 </Button>
                 <Button x:Name="RectangleButton" Click="Rectangle_Click" ToolTip="Rectangle" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Rectangle">
-                    <TextBlock Text="&#xE739;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Data="M3,4 H17 V16 H3 Z"/>
                 </Button>
                 <Button x:Name="EllipseButton" Click="Ellipse_Click" ToolTip="Ellipse" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Ellipse">
-                    <TextBlock Text="&#xEA3A;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Data="M10,3 A7,7 0 1 1 9.9,3"/>
                 </Button>
                 <Button x:Name="TextButton" Click="Text_Click" ToolTip="Text" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Text">
-                    <TextBlock Text="&#xE8D2;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Data="M4,5 H16 M10,5 V17 M7,17 H13"/>
                 </Button>
                 <Button x:Name="NumberButton" Click="Number_Click" ToolTip="Numbered step" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Numbered step">
-                    <TextBlock Text="&#xE8EF;" FontFamily="Segoe MDL2 Assets"/>
+                    <Grid Width="16" Height="16">
+                        <Ellipse Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.5"/>
+                        <TextBlock Text="1" FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
+                    </Grid>
                 </Button>
                 <Border Style="{StaticResource EditorToolDivider}"/>
                 <Button x:Name="BlurButton" Click="Blur_Click" ToolTip="Blur" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Blur">
-                    <TextBlock Text="&#xE9F5;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Opacity="0.95"
+                          Data="M6,10 A4,4 0 1 1 6.1,10 M10,10 A4,4 0 1 1 10.1,10 M14,10 A4,4 0 1 1 14.1,10"/>
                 </Button>
                 <Button x:Name="PixelateButton" Click="Pixelate_Click" ToolTip="Pixelate" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Pixelate">
-                    <TextBlock Text="&#xE9F9;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Data="M3,3 H8 V8 H3 Z M12,3 H17 V8 H12 Z M3,12 H8 V17 H3 Z M12,12 H17 V17 H12 Z"/>
                 </Button>
-                <Button x:Name="EraseButton" Click="Erase_Click" ToolTip="Erase" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Erase">
-                    <TextBlock Text="&#xE75C;" FontFamily="Segoe MDL2 Assets"/>
+                <Button x:Name="EraseButton" Click="Erase_Click" ToolTip="Eraser — scrub annotations" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Erase">
+                    <Path Style="{StaticResource ToolIcon}" Data="M4,12 L10,4 L16,10 L10,16 Z M7,15 H17"/>
                 </Button>
-                <Button x:Name="SelectButton" Click="Select_Click" ToolTip="Select" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Select">
-                    <TextBlock Text="&#xE762;" FontFamily="Segoe MDL2 Assets"/>
+                <Button x:Name="SelectButton" Click="Select_Click" ToolTip="Select — click an annotation to move or delete it" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Select">
+                    <Path Style="{StaticResource ToolIconFill}" Data="M4,3 L4,15 L8,12 L11,18 L13,17 L10,11 L15,11 Z"/>
                 </Button>
-                <Button Click="DeleteSelection_Click" ToolTip="Delete selection" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Delete selection">
-                    <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets"/>
+                <Button x:Name="DeleteButton" Click="DeleteSelection_Click" ToolTip="Delete selected annotation (or the last one)" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Delete selection">
+                    <Path Style="{StaticResource ToolIcon}" Data="M7,5 V4 H13 V5 M5,5 H15 M6,5 L7,17 H13 L14,5 M9,8 V14 M11,8 V14"/>
                 </Button>
                 <Border Style="{StaticResource EditorToolDivider}"/>
                 <Button Click="Undo_Click" ToolTip="Undo (Ctrl+Z)" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Undo">
-                    <TextBlock Text="&#xE7A7;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Data="M7,8 H4 V5 M4,8 A6,6 0 1 1 5,14"/>
                 </Button>
                 <Button Click="Redo_Click" ToolTip="Redo (Ctrl+Y)" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Redo">
-                    <TextBlock Text="&#xE7A6;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Data="M13,8 H16 V5 M16,8 A6,6 0 1 0 15,14"/>
                 </Button>
                 <Border Style="{StaticResource EditorToolDivider}"/>
                 <Button Click="Copy_Click" ToolTip="Copy and close (Space)" Style="{StaticResource EditorPrimaryToolButton}" AutomationProperties.Name="Copy" Width="Auto" MinWidth="72" Padding="12,0">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" VerticalAlignment="Center"/>
-                        <TextBlock Text="Copy" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <Path Style="{StaticResource ToolIcon}" Width="14" Height="14" Data="M7,3 H15 V13 H7 Z M5,5 V17 H13"/>
+                        <TextBlock Text="Copy" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                     </StackPanel>
                 </Button>
                 <Button Click="Save_Click" ToolTip="Save PNG" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Save PNG">
-                    <TextBlock Text="&#xE74E;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Data="M4,4 H13 L16,7 V16 H4 Z M7,4 V8 H12 M7,12 H13"/>
                 </Button>
                 <Button Click="Close_Click" ToolTip="Close (Esc)" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Close editor">
-                    <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets"/>
+                    <Path Style="{StaticResource ToolIcon}" Data="M5,5 L15,15 M15,5 L5,15"/>
                 </Button>
             </StackPanel>
         </Border>

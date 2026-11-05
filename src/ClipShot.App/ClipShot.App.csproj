@@ -8,12 +8,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ClipShot</RootNamespace>
     <AssemblyName>ClipShot</AssemblyName>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Authors>niimbu</Authors>
     <Company>niimbu</Company>
     <Product>ClipShot</Product>
     <Copyright>Copyright (c) niimbu</Copyright>
     <Description>A lightweight Windows screenshot tool by niimbu.</Description>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon Condition="Exists('..\..\assets\branding\clipshot.ico')">..\..\assets\branding\clipshot.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup Condition="Exists('..\..\assets\branding\clipshot.ico')">
+    <Resource Include="..\..\assets\branding\clipshot.ico" Link="Assets\clipshot.ico" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('..\..\assets\branding\clipshot-icon.png')">
+    <Resource Include="..\..\assets\branding\clipshot-icon.png" Link="Assets\clipshot-icon.png" />
+  </ItemGroup>
 </Project>

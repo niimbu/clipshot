@@ -44,12 +44,13 @@ internal sealed class HotkeySettings
 
     public void Save()
     {
-        var directory = Path.GetDirectoryName(SettingsPath)!;
-        Directory.CreateDirectory(directory);
-        File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, new JsonSerializerOptions
-        {
-            WriteIndented = true
-        }));
+        // Prefer AppSettings so dim opacity and other prefs are preserved.
+        var settings = AppSettings.Load();
+        settings.RegionKey = RegionKey;
+        settings.RegionModifiers = RegionModifiers;
+        settings.FullScreenKey = FullScreenKey;
+        settings.FullScreenModifiers = FullScreenModifiers;
+        settings.Save();
     }
 
     public HotkeySettings Copy() => new()

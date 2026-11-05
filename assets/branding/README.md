@@ -1,19 +1,15 @@
-# ClipShot branding assets
+# ClipShot branding
 
-The supplied master artwork lives here:
+Place the official brand mark at `ClipShot_Logo.svg` (the file from the project desktop / design handoff).
 
-- `clipshot-icon.svg` — editable source logo.
-- `build-branding.ps1` — exports the WPF dashboard PNG and Windows ICO from the SVG.
-- `clipshot-icon.png` and `clipshot.ico` — generated build outputs (not committed).
-
-The WPF dashboard uses the PNG. The executable and window use the ICO. When the SVG changes, rerun the export script so both generated files stay in sync.
-
-## Regenerate locally
-
-Install ImageMagick, then run this from the repository root in PowerShell:
+Generate Windows assets with ImageMagick:
 
 ```powershell
-.\assets\branding\build-branding.ps1
+./assets/branding/build-branding.ps1
 ```
 
-The GitHub Actions build runs the same script before compiling, so end users do not need ImageMagick or any developer tools.
+This writes:
+- `clipshot-icon.png` — UI and Start Menu imagery
+- `clipshot.ico` — application icon
+
+The GitHub Actions Windows build runs this script before publishing.
