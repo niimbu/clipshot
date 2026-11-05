@@ -66,7 +66,7 @@ public partial class ScreenshotEditorWindow : Window
     private const string EffectBlurTag = "Effect:Blur";
     private const string EffectPixelateTag = "Effect:Pixelate";
     private const string ResizeHandleTag = "ResizeHandle";
-    private static readonly string[] ResizeEdges = ["NW", "N", "NE", "E", "SE", "S", "SW", "W"];
+    private static readonly string[] ResizeEdges = ["NW", "N", "NE", "E", "SE", "S", "SW", "W", "Start", "End"];
 
     private sealed class ArrowAnnotation
     {
@@ -1222,13 +1222,25 @@ public partial class ScreenshotEditorWindow : Window
             AnnotationCanvas.Children.Add(_selectionChrome);
         }
 
-        PlaceElement(_selectionChrome, rect.Left, rect.Top);
-        _selectionChrome.Width = Math.Max(1, rect.Width);
-        _selectionChrome.Height = Math.Max(1, rect.Height);
+        if (_selectedElement is not null && UsesEndpointHandles(_selectedElement))
+        {
+            // Lines/arrows use endpoint grips instead of a bounding-box chrome.
+            if (_selectionChrome is not null)
+                _selectionChrome.Visibility = Visibility.Collapsed;
+            UpdateEndpointHandles(_selectedElement);
+            return;
+        }
+
+        var chrome = _selectionChrome!;
+        chrome.Visibility = Visibility.Visible;
+
+        PlaceElement(chrome, rect.Left, rect.Top);
+        chrome.Width = Math.Max(1, rect.Width);
+        chrome.Height = Math.Max(1, rect.Height);
 
         // Keep chrome above the selection target.
-        AnnotationCanvas.Children.Remove(_selectionChrome);
-        AnnotationCanvas.Children.Add(_selectionChrome);
+        AnnotationCanvas.Children.Remove(chrome);
+        AnnotationCanvas.Children.Add(chrome);
 
         if (_selectedElement is not null && IsResizableAnnotation(_selectedElement))
             UpdateResizeHandles(bounds.Value);
@@ -1238,6 +1250,9 @@ public partial class ScreenshotEditorWindow : Window
 
     private bool IsResizableAnnotation(UIElement element) =>
         IsMovableAnnotation(element);
+
+    private static bool UsesEndpointHandles(UIElement element) =>
+        element is Line || element is Path { Tag: ArrowAnnotation };
 
     private static bool IsEffectAnnotation(UIElement element) =>
         GetEffectKind(element) is not null;
@@ -1354,15 +1369,19 @@ public partial class ScreenshotEditorWindow : Window
 
         foreach (var edge in ResizeEdges)
         {
+            var isEndpoint = edge is "Start" or "End";
             var handle = new Ellipse
             {
                 Tag = ResizeHandleTag,
-                Width = 9,
-                Height = 9,
+                Width = isEndpoint ? 12 : 9,
+                Height = isEndpoint ? 12 : 9,
                 Fill = Brushes.White,
-                Stroke = new SolidColorBrush(Color.FromRgb(0x16, 0x18, 0x1D)),
-                StrokeThickness = 1,
-                Cursor = edge is "N" or "S" ? Cursors.SizeNS
+                Stroke = isEndpoint
+                    ? new SolidColorBrush(Color.FromRgb(0xE1, 0x1D, 0x48))
+                    : new SolidColorBrush(Color.FromRgb(0x16, 0x18, 0x1D)),
+                StrokeThickness = isEndpoint ? 2 : 1,
+                Cursor = edge is "Start" or "End" ? Cursors.Cross
+                    : edge is "N" or "S" ? Cursors.SizeNS
                     : edge is "E" or "W" ? Cursors.SizeWE
                     : edge is "NE" or "SW" ? Cursors.SizeNESW
                     : Cursors.SizeNWSE
@@ -1378,33 +1397,73 @@ public partial class ScreenshotEditorWindow : Window
             handle.Visibility = Visibility.Collapsed;
     }
 
+    private void PlaceHandle(string edge, double x, double y)
+    {
+        var handle = _resizeHandles[edge];
+        handle.Visibility = Visibility.Visible;
+        PlaceElement(handle, x - handle.Width / 2, y - handle.Height / 2);
+        AnnotationCanvas.Children.Remove(handle);
+        AnnotationCanvas.Children.Add(handle);
+    }
+
     private void UpdateResizeHandles(Rect bounds)
     {
         EnsureResizeHandles();
+        HideResizeHandles();
 
-        void place(string edge, double x, double y)
+        PlaceHandle("NW", bounds.Left, bounds.Top);
+        PlaceHandle("N", bounds.Left + bounds.Width / 2, bounds.Top);
+        PlaceHandle("NE", bounds.Right, bounds.Top);
+        PlaceHandle("E", bounds.Right, bounds.Top + bounds.Height / 2);
+        PlaceHandle("SE", bounds.Right, bounds.Bottom);
+        PlaceHandle("S", bounds.Left + bounds.Width / 2, bounds.Bottom);
+        PlaceHandle("SW", bounds.Left, bounds.Bottom);
+        PlaceHandle("W", bounds.Left, bounds.Top + bounds.Height / 2);
+    }
+
+    private void UpdateEndpointHandles(UIElement element)
+    {
+        EnsureResizeHandles();
+        HideResizeHandles();
+
+        var endpoints = GetEndpoints(element);
+        if (endpoints is null)
+            return;
+
+        PlaceHandle("Start", endpoints.Value.Start.X, endpoints.Value.Start.Y);
+        PlaceHandle("End", endpoints.Value.End.X, endpoints.Value.End.Y);
+    }
+
+    private (Point Start, Point End)? GetEndpoints(UIElement element)
+    {
+        if (element is Line line)
         {
-            var handle = _resizeHandles[edge];
-            handle.Visibility = Visibility.Visible;
-            PlaceElement(handle, x - handle.Width / 2, y - handle.Height / 2);
-            AnnotationCanvas.Children.Remove(handle);
-            AnnotationCanvas.Children.Add(handle);
+            var left = InkCanvas.GetLeft(line);
+            var top = InkCanvas.GetTop(line);
+            if (double.IsNaN(left)) left = 0;
+            if (double.IsNaN(top)) top = 0;
+            return (new Point(line.X1 + left, line.Y1 + top), new Point(line.X2 + left, line.Y2 + top));
         }
 
-        place("NW", bounds.Left, bounds.Top);
-        place("N", bounds.Left + bounds.Width / 2, bounds.Top);
-        place("NE", bounds.Right, bounds.Top);
-        place("E", bounds.Right, bounds.Top + bounds.Height / 2);
-        place("SE", bounds.Right, bounds.Bottom);
-        place("S", bounds.Left + bounds.Width / 2, bounds.Bottom);
-        place("SW", bounds.Left, bounds.Bottom);
-        place("W", bounds.Left, bounds.Top + bounds.Height / 2);
+        if (element is Path { Tag: ArrowAnnotation arrow })
+            return (arrow.Start, arrow.End);
+
+        if (element is Path path && CaptureGeometrySnapshot(path) is ArrowAnnotation inferred)
+            return (inferred.Start, inferred.End);
+
+        return null;
     }
 
     private void ResizeSelectionTo(Point position)
     {
         if (_selectedElement is null || _resizeEdge is null)
             return;
+
+        if (_resizeEdge is "Start" or "End")
+        {
+            DragEndpointTo(position);
+            return;
+        }
 
         var left = _resizeOriginBounds.Left;
         var top = _resizeOriginBounds.Top;
@@ -1482,6 +1541,70 @@ public partial class ScreenshotEditorWindow : Window
         UpdateSelectionChrome();
     }
 
+    private void DragEndpointTo(Point position)
+    {
+        if (_selectedElement is null || _resizeEdge is null)
+            return;
+
+        Point originStart;
+        Point originEnd;
+        if (_resizeOriginGeometry is (double x1, double y1, double x2, double y2, double left, double top))
+        {
+            originStart = new Point(x1 + left, y1 + top);
+            originEnd = new Point(x2 + left, y2 + top);
+        }
+        else if (_resizeOriginGeometry is ArrowAnnotation arrow)
+        {
+            originStart = arrow.Start;
+            originEnd = arrow.End;
+        }
+        else if (GetEndpoints(_selectedElement) is { } current)
+        {
+            originStart = current.Start;
+            originEnd = current.End;
+        }
+        else
+        {
+            return;
+        }
+
+        var anchor = _resizeEdge == "Start" ? originEnd : originStart;
+        var moving = position;
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+            moving = SnapPointToAxisOrDiagonal(anchor, position);
+
+        var length = Math.Sqrt(
+            (moving.X - anchor.X) * (moving.X - anchor.X) +
+            (moving.Y - anchor.Y) * (moving.Y - anchor.Y));
+        if (length < 3)
+            return;
+
+        var start = _resizeEdge == "Start" ? moving : originStart;
+        var end = _resizeEdge == "End" ? moving : originEnd;
+        // When dragging Start, keep End fixed at originEnd; when dragging End, keep Start at originStart.
+        if (_resizeEdge == "Start")
+            end = originEnd;
+        else
+            start = originStart;
+
+        if (_selectedElement is Line line)
+        {
+            line.X1 = start.X;
+            line.Y1 = start.Y;
+            line.X2 = end.X;
+            line.Y2 = end.Y;
+            PlaceElement(line, 0, 0);
+        }
+        else if (_selectedElement is Path path)
+        {
+            path.Tag = new ArrowAnnotation { Start = start, End = end };
+            path.Data = BuildArrowGeometry(start, end);
+            PlaceElement(path, 0, 0);
+        }
+
+        UpdateSelectionChrome();
+    }
+
     private void EndSelectionResize()
     {
         if (!_selectionResizing)
@@ -1493,11 +1616,44 @@ public partial class ScreenshotEditorWindow : Window
         var changed = false;
         if (_selectedElement is not null)
         {
-            var bounds = GetLayoutBounds(_selectedElement);
-            changed = Math.Abs(bounds.Left - _resizeOriginBounds.Left) > 0.5
-                      || Math.Abs(bounds.Top - _resizeOriginBounds.Top) > 0.5
-                      || Math.Abs(bounds.Width - _resizeOriginBounds.Width) > 0.5
-                      || Math.Abs(bounds.Height - _resizeOriginBounds.Height) > 0.5;
+            if (_resizeEdge is "Start" or "End")
+            {
+                var now = GetEndpoints(_selectedElement);
+                if (now is not null && _resizeOriginGeometry is not null)
+                {
+                    Point originStart;
+                    Point originEnd;
+                    if (_resizeOriginGeometry is (double x1, double y1, double x2, double y2, double left, double top))
+                    {
+                        originStart = new Point(x1 + left, y1 + top);
+                        originEnd = new Point(x2 + left, y2 + top);
+                    }
+                    else if (_resizeOriginGeometry is ArrowAnnotation arrow)
+                    {
+                        originStart = arrow.Start;
+                        originEnd = arrow.End;
+                    }
+                    else
+                    {
+                        originStart = now.Value.Start;
+                        originEnd = now.Value.End;
+                    }
+
+                    changed = Math.Abs(now.Value.Start.X - originStart.X) > 0.5
+                              || Math.Abs(now.Value.Start.Y - originStart.Y) > 0.5
+                              || Math.Abs(now.Value.End.X - originEnd.X) > 0.5
+                              || Math.Abs(now.Value.End.Y - originEnd.Y) > 0.5;
+                }
+            }
+            else
+            {
+                var bounds = GetLayoutBounds(_selectedElement);
+                changed = Math.Abs(bounds.Left - _resizeOriginBounds.Left) > 0.5
+                          || Math.Abs(bounds.Top - _resizeOriginBounds.Top) > 0.5
+                          || Math.Abs(bounds.Width - _resizeOriginBounds.Width) > 0.5
+                          || Math.Abs(bounds.Height - _resizeOriginBounds.Height) > 0.5;
+            }
+
             if (_selectedElement is Rectangle effect && IsEffectAnnotation(effect))
                 RefreshEffectPreview(effect);
         }

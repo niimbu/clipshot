@@ -264,7 +264,7 @@
                 <Button x:Name="EraseButton" Click="Erase_Click" ToolTip="Eraser — scrub pen, shapes, text, and numbers" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Erase">
                     <Path Style="{StaticResource ToolIcon}" Data="M4,12 L10,4 L16,10 L10,16 Z M7,15 H17"/>
                 </Button>
-                <Button x:Name="SelectButton" Click="Select_Click" ToolTip="Select — drag to move, handles to rescale any annotation" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Select">
+                <Button x:Name="SelectButton" Click="Select_Click" ToolTip="Select — drag to move; endpoint grips for line/arrow; box handles for shapes" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Select">
                     <Path Style="{StaticResource ToolIconFill}" Data="M4,3 L4,15 L8,12 L11,18 L13,17 L10,11 L15,11 Z"/>
                 </Button>
                 <Button x:Name="DeleteButton" Click="DeleteSelection_Click" ToolTip="Delete selected annotation (or the last one)" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Delete selection">
