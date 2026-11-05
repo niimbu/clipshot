@@ -15,7 +15,7 @@ internal sealed class AppSettings
     public int FullScreenModifiers { get; set; } = 6;
 
     /// <summary>
-    /// Darkness of the region-selection dim, from 0.05 (almost clear) to 0.9 (very dark).
+    /// Darkness of the region-selection dim, from 0 (clear) to 0.9 (very dark).
     /// </summary>
     public double RegionDimOpacity { get; set; } = 0.45;
 
@@ -42,7 +42,7 @@ internal sealed class AppSettings
             settings.FullScreenKey = fullScreenKey.ToString();
             settings.RegionModifiers &= 0x0F;
             settings.FullScreenModifiers &= 0x0F;
-            settings.RegionDimOpacity = Math.Clamp(settings.RegionDimOpacity, 0.05, 0.9);
+            settings.RegionDimOpacity = Math.Clamp(settings.RegionDimOpacity, 0, 0.9);
             return settings;
         }
         catch
@@ -53,7 +53,7 @@ internal sealed class AppSettings
 
     public void Save()
     {
-        RegionDimOpacity = Math.Clamp(RegionDimOpacity, 0.05, 0.9);
+        RegionDimOpacity = Math.Clamp(RegionDimOpacity, 0, 0.9);
         var directory = Path.GetDirectoryName(SettingsPath)!;
         Directory.CreateDirectory(directory);
         File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, new JsonSerializerOptions

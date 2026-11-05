@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Ink;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -21,6 +22,8 @@ using Clipboard = System.Windows.Clipboard;
 using MessageBox = System.Windows.MessageBox;
 using Cursors = System.Windows.Input.Cursors;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using DragDeltaEventArgs = System.Windows.Controls.Primitives.DragDeltaEventArgs;
+using ColorConverter = System.Windows.Media.ColorConverter;
 
 namespace ClipShot;
 
@@ -48,6 +51,12 @@ public partial class ScreenshotEditorWindow : Window
     private double _selectionOriginLeft;
     private double _selectionOriginTop;
     private StylusPointCollection? _selectionStrokeOrigin;
+    private Color _annotationColor = Color.FromRgb(0xE1, 0x1D, 0x48);
+    private bool _inkStraightMode;
+    private readonly bool _inPlaceMode;
+    private readonly BitmapSource? _fullScreenshot;
+    private Rect _regionBounds;
+    private double _dimOpacity = 0.45;
 
     public bool WasCopied { get; private set; }
     public bool WasSaved { get; private set; }
@@ -55,6 +64,26 @@ public partial class ScreenshotEditorWindow : Window
     public ScreenshotEditorWindow(BitmapSource image)
     {
         InitializeComponent();
+        ConfigureSurface(image);
+        SetAnnotationColor(_annotationColor);
+        SetTool(EditorTool.Pen);
+    }
+
+    public ScreenshotEditorWindow(BitmapSource regionImage, BitmapSource fullScreenshot, Rect regionBounds, double dimOpacity)
+    {
+        _inPlaceMode = true;
+        _fullScreenshot = fullScreenshot;
+        _regionBounds = regionBounds;
+        _dimOpacity = Math.Clamp(dimOpacity, 0, 0.9);
+        InitializeComponent();
+        ConfigureSurface(regionImage);
+        EnableInPlaceMode();
+        SetAnnotationColor(_annotationColor);
+        SetTool(EditorTool.Pen);
+    }
+
+    private void ConfigureSurface(BitmapSource image)
+    {
         PreviewImage.Source = image;
         var width = image.PixelWidth * 96d / image.DpiX;
         var height = image.PixelHeight * 96d / image.DpiY;
@@ -64,14 +93,38 @@ public partial class ScreenshotEditorWindow : Window
         PreviewImage.Height = height;
         PreviewSurface.Width = width;
         PreviewSurface.Height = height;
-        SetTool(EditorTool.Pen);
+    }
+
+    private void EnableInPlaceMode()
+    {
+        Background = Brushes.Black;
+        CenteredHost.Visibility = Visibility.Collapsed;
+        InPlaceHost.Visibility = Visibility.Visible;
+        FullScreenImage.Source = _fullScreenshot;
+
+        if (CenteredSurfaceBorder.Child == PreviewSurface)
+            CenteredSurfaceBorder.Child = null;
+        InPlaceSurfaceSlot.Children.Clear();
+        InPlaceSurfaceSlot.Children.Add(PreviewSurface);
+
+        InPlaceDimOverlay.Fill = Brushes.Black;
+        InPlaceDimOverlay.Opacity = _dimOpacity;
+        UpdateInPlaceLayout();
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
+        if (_inPlaceMode)
+            UpdateInPlaceLayout();
         Activate();
         Focus();
         AnnotationCanvas.Focus();
+    }
+
+    private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_inPlaceMode)
+            UpdateInPlaceLayout();
     }
 
     private void SetTool(EditorTool tool)
@@ -81,6 +134,7 @@ public partial class ScreenshotEditorWindow : Window
             ClearAnnotationSelection();
 
         _tool = tool;
+        _inkStraightMode = false;
         // Use None for Select — InkCanvas's built-in Select mode fights our Preview mouse
         // handlers and fails on Line/Path children with zero layout size. Custom hit-test
         // selection below handles both shapes and ink strokes.
@@ -101,16 +155,76 @@ public partial class ScreenshotEditorWindow : Window
             EditorTool.Text or EditorTool.Number => Cursors.IBeam,
             _ => Cursors.Pen
         };
+        ApplyDrawingAttributes();
+        UpdateActiveToolButton();
+    }
+
+    private void ApplyDrawingAttributes()
+    {
+        var color = _tool == EditorTool.Highlight
+            ? Color.FromArgb(120, _annotationColor.R, _annotationColor.G, _annotationColor.B)
+            : _annotationColor;
         AnnotationCanvas.DefaultDrawingAttributes = new DrawingAttributes
         {
-            Color = tool == EditorTool.Highlight ? Color.FromArgb(105, 255, 220, 0) : Colors.Red,
-            Width = tool == EditorTool.Highlight ? 20 : 3,
-            Height = tool == EditorTool.Highlight ? 20 : 3,
+            Color = color,
+            Width = _tool == EditorTool.Highlight ? 22 : 3,
+            Height = _tool == EditorTool.Highlight ? 22 : 3,
             FitToCurve = true,
             IgnorePressure = true,
-            IsHighlighter = tool == EditorTool.Highlight
+            IsHighlighter = _tool == EditorTool.Highlight
         };
-        UpdateActiveToolButton();
+    }
+
+    private void SetAnnotationColor(Color color)
+    {
+        _annotationColor = color;
+        ApplyDrawingAttributes();
+        UpdateColorSwatches();
+    }
+
+    private void ColorSwatch_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || string.IsNullOrWhiteSpace(button.Uid))
+            return;
+        try
+        {
+            if (ColorConverter.ConvertFromString(button.Uid) is Color color)
+                SetAnnotationColor(color);
+        }
+        catch
+        {
+            // Ignore invalid palette colors.
+        }
+    }
+
+    private void UpdateColorSwatches()
+    {
+        void sync(Button button, string hex)
+        {
+            button.Uid = hex;
+            var active = false;
+            try
+            {
+                if (ColorConverter.ConvertFromString(hex) is Color color)
+                    active = color.R == _annotationColor.R && color.G == _annotationColor.G && color.B == _annotationColor.B;
+            }
+            catch
+            {
+                active = false;
+            }
+
+            button.Tag = active ? "Active" : null;
+            button.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)!);
+        }
+
+        sync(ColorRedButton, "#FFE11D48");
+        sync(ColorOrangeButton, "#FFF97316");
+        sync(ColorYellowButton, "#FFFACC15");
+        sync(ColorGreenButton, "#FF22C55E");
+        sync(ColorBlueButton, "#FF3B82F6");
+        sync(ColorPurpleButton, "#FFA855F7");
+        sync(ColorWhiteButton, "#FFF8FAFC");
+        sync(ColorBlackButton, "#FF0F172A");
     }
 
     private void UpdateActiveToolButton()
@@ -300,6 +414,11 @@ public partial class ScreenshotEditorWindow : Window
         PreviewSurface.Height = displayHeight;
         AnnotationCanvas.Strokes.Clear();
         AnnotationCanvas.Children.Clear();
+        if (_inPlaceMode)
+        {
+            _regionBounds = new Rect(_regionBounds.Left, _regionBounds.Top, displayWidth, displayHeight);
+            UpdateInPlaceLayout();
+        }
     }
 
     private void Undo_Click(object sender, RoutedEventArgs e)
@@ -321,6 +440,23 @@ public partial class ScreenshotEditorWindow : Window
     private void AnnotationCanvas_StrokeCollected(object sender, InkCanvasStrokeCollectedEventArgs e)
     {
         // Stroke undo is captured on pointer-down so the complete previous state is retained.
+        if (_tool is not (EditorTool.Pen or EditorTool.Highlight))
+            return;
+
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift)
+            return;
+
+        var points = e.Stroke.StylusPoints;
+        if (points.Count < 2)
+            return;
+
+        var start = new Point(points[0].X, points[0].Y);
+        var end = SnapPointToAxisOrDiagonal(start, new Point(points[^1].X, points[^1].Y));
+        e.Stroke.StylusPoints = new StylusPointCollection
+        {
+            new StylusPoint(start.X, start.Y),
+            new StylusPoint(end.X, end.Y)
+        };
     }
 
     private void AnnotationCanvas_StrokeErasing(object sender, InkCanvasStrokeErasingEventArgs e)
@@ -345,6 +481,32 @@ public partial class ScreenshotEditorWindow : Window
         {
             _beforeAction = RenderAnnotatedImage();
             _drawing = true;
+            _start = position;
+            if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+            {
+                // Straight ink: suppress freehand and draw a constrained stroke preview.
+                _inkStraightMode = true;
+                AnnotationCanvas.EditingMode = InkCanvasEditingMode.None;
+                var brush = new SolidColorBrush(GetStrokeColor());
+                brush.Freeze();
+                _previewShape = new Line
+                {
+                    Stroke = brush,
+                    StrokeThickness = _tool == EditorTool.Highlight ? 22 : 3,
+                    Opacity = _tool == EditorTool.Highlight ? 0.55 : 1,
+                    StrokeStartLineCap = PenLineCap.Round,
+                    StrokeEndLineCap = PenLineCap.Round
+                };
+                AnnotationCanvas.Children.Add(_previewShape);
+                UpdateShape(ConstrainDrawingPoint(position));
+                AnnotationCanvas.CaptureMouse();
+                e.Handled = true;
+            }
+            else
+            {
+                _inkStraightMode = false;
+            }
+
             return;
         }
 
@@ -386,7 +548,7 @@ public partial class ScreenshotEditorWindow : Window
                 Width = 34,
                 Height = 34,
                 CornerRadius = new CornerRadius(17),
-                Background = Brushes.Red,
+                Background = CreateAnnotationBrush(),
                 BorderBrush = Brushes.White,
                 BorderThickness = new Thickness(2),
                 Child = new TextBlock
@@ -471,7 +633,36 @@ public partial class ScreenshotEditorWindow : Window
 
         if (_tool is EditorTool.Pen or EditorTool.Highlight)
         {
+            if (_inkStraightMode && _previewShape is Line preview)
+            {
+                var straightEnd = ConstrainDrawingPoint(e.GetPosition(AnnotationCanvas));
+                UpdateShape(straightEnd);
+                AnnotationCanvas.Children.Remove(preview);
+                _previewShape = null;
+                AnnotationCanvas.ReleaseMouseCapture();
+                _inkStraightMode = false;
+                _drawing = false;
+                e.Handled = true;
+
+                if (Math.Abs(straightEnd.X - _start.X) >= 2 || Math.Abs(straightEnd.Y - _start.Y) >= 2)
+                {
+                    if (_beforeAction is not null)
+                        SaveUndoPointFrom(_beforeAction);
+                    var attrs = AnnotationCanvas.DefaultDrawingAttributes.Clone();
+                    var stroke = new Stroke(new StylusPointCollection
+                    {
+                        new StylusPoint(_start.X, _start.Y),
+                        new StylusPoint(straightEnd.X, straightEnd.Y)
+                    }, attrs);
+                    AnnotationCanvas.Strokes.Add(stroke);
+                }
+
+                AnnotationCanvas.EditingMode = InkCanvasEditingMode.Ink;
+                return;
+            }
+
             _drawing = false;
+            _inkStraightMode = false;
             if (_beforeAction is not null)
                 SaveUndoPointFrom(_beforeAction);
             return;
@@ -542,16 +733,29 @@ public partial class ScreenshotEditorWindow : Window
 
     private Point ConstrainDrawingPoint(Point current)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift)
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift && !_inkStraightMode)
             return current;
 
         return _tool switch
         {
-            EditorTool.Line or EditorTool.Arrow => SnapPointToAxisOrDiagonal(_start, current),
+            EditorTool.Line or EditorTool.Arrow or EditorTool.Pen or EditorTool.Highlight
+                => SnapPointToAxisOrDiagonal(_start, current),
             EditorTool.Rectangle or EditorTool.Ellipse or EditorTool.Blur or EditorTool.Pixelate
                 => SnapPointToSquare(_start, current),
             _ => current
         };
+    }
+
+    private Color GetStrokeColor() =>
+        _tool == EditorTool.Highlight
+            ? Color.FromArgb(120, _annotationColor.R, _annotationColor.G, _annotationColor.B)
+            : _annotationColor;
+
+    private SolidColorBrush CreateAnnotationBrush()
+    {
+        var brush = new SolidColorBrush(_annotationColor);
+        brush.Freeze();
+        return brush;
     }
 
     private static Point SnapPointToAxisOrDiagonal(Point start, Point current)
@@ -580,21 +784,25 @@ public partial class ScreenshotEditorWindow : Window
             start.Y + Math.Sign(dy == 0 ? 1 : dy) * side);
     }
 
-    private static Shape CreateShape(EditorTool tool) => tool switch
+    private Shape CreateShape(EditorTool tool)
     {
-        EditorTool.Line => new Line { Stroke = Brushes.Red, StrokeThickness = 3 },
-        EditorTool.Arrow => new Path
+        var brush = CreateAnnotationBrush();
+        return tool switch
         {
-            Stroke = Brushes.Red,
-            StrokeThickness = 3,
-            StrokeStartLineCap = PenLineCap.Round,
-            StrokeEndLineCap = PenLineCap.Round,
-            StrokeLineJoin = PenLineJoin.Round,
-            Fill = Brushes.Red
-        },
-        EditorTool.Ellipse => new Ellipse { Stroke = Brushes.Red, StrokeThickness = 3, Fill = Brushes.Transparent },
-        _ => new Rectangle { Stroke = Brushes.Red, StrokeThickness = 3, Fill = Brushes.Transparent }
-    };
+            EditorTool.Line => new Line { Stroke = brush, StrokeThickness = 3 },
+            EditorTool.Arrow => new Path
+            {
+                Stroke = brush,
+                StrokeThickness = 3,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                StrokeLineJoin = PenLineJoin.Round,
+                Fill = brush
+            },
+            EditorTool.Ellipse => new Ellipse { Stroke = brush, StrokeThickness = 3, Fill = Brushes.Transparent },
+            _ => new Rectangle { Stroke = brush, StrokeThickness = 3, Fill = Brushes.Transparent }
+        };
+    }
 
     private void UpdateShape(Point end)
     {
@@ -947,15 +1155,16 @@ public partial class ScreenshotEditorWindow : Window
         CommitInlineText(save: true);
         _inlineTextUndo = _beforeAction;
 
+        var brush = CreateAnnotationBrush();
         _inlineTextBox = new TextBox
         {
             MinWidth = 140,
             FontSize = 22,
             FontWeight = FontWeights.SemiBold,
-            Foreground = Brushes.Red,
+            Foreground = brush,
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
-            CaretBrush = Brushes.Red,
+            CaretBrush = brush,
             Padding = new Thickness(2, 0, 2, 0)
         };
         _inlineTextBox.KeyDown += InlineTextBox_KeyDown;
@@ -964,7 +1173,7 @@ public partial class ScreenshotEditorWindow : Window
         _inlineTextHost = new Border
         {
             Background = new SolidColorBrush(Color.FromArgb(36, 255, 255, 255)),
-            BorderBrush = Brushes.Red,
+            BorderBrush = brush,
             BorderThickness = new Thickness(1.5),
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(6, 4, 6, 4),
@@ -1028,7 +1237,7 @@ public partial class ScreenshotEditorWindow : Window
             Text = text,
             FontSize = 22,
             FontWeight = FontWeights.SemiBold,
-            Foreground = Brushes.Red,
+            Foreground = CreateAnnotationBrush(),
             Background = Brushes.Transparent
         };
         PlaceElement(block, left, top);
@@ -1167,4 +1376,183 @@ public partial class ScreenshotEditorWindow : Window
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void UpdateInPlaceLayout()
+    {
+        if (!_inPlaceMode || _fullScreenshot is null)
+            return;
+
+        var hostWidth = Math.Max(ActualWidth, SystemParameters.PrimaryScreenWidth);
+        var hostHeight = Math.Max(ActualHeight, SystemParameters.PrimaryScreenHeight);
+        _regionBounds = ClampRegionBounds(_regionBounds, hostWidth, hostHeight);
+
+        Canvas.SetLeft(RegionChrome, _regionBounds.Left);
+        Canvas.SetTop(RegionChrome, _regionBounds.Top);
+        RegionChrome.Width = _regionBounds.Width;
+        RegionChrome.Height = _regionBounds.Height;
+
+        PreviewSurface.Width = _regionBounds.Width;
+        PreviewSurface.Height = _regionBounds.Height;
+        PreviewImage.Width = _regionBounds.Width;
+        PreviewImage.Height = _regionBounds.Height;
+        AnnotationCanvas.Width = _regionBounds.Width;
+        AnnotationCanvas.Height = _regionBounds.Height;
+
+        RefreshRegionCrop();
+        RefreshInPlaceDim(hostWidth, hostHeight);
+        PositionResizeHandles();
+        PositionInPlaceSizeBadge();
+    }
+
+    private void RefreshRegionCrop()
+    {
+        if (_fullScreenshot is null)
+            return;
+
+        var pixels = ToPixelRect(_regionBounds, _fullScreenshot, ActualWidth > 1 ? ActualWidth : SystemParameters.PrimaryScreenWidth,
+            ActualHeight > 1 ? ActualHeight : SystemParameters.PrimaryScreenHeight);
+        if (pixels.Width < 1 || pixels.Height < 1)
+            return;
+
+        var cropped = new CroppedBitmap(_fullScreenshot, pixels);
+        cropped.Freeze();
+        PreviewImage.Source = cropped;
+        InPlaceSizeText.Text = $"{pixels.Width} × {pixels.Height}";
+    }
+
+    private void RefreshInPlaceDim(double width, double height)
+    {
+        var geometry = new GeometryGroup { FillRule = FillRule.EvenOdd };
+        geometry.Children.Add(new RectangleGeometry(new Rect(0, 0, width, height)));
+        if (_regionBounds.Width > 0 && _regionBounds.Height > 0)
+            geometry.Children.Add(new RectangleGeometry(_regionBounds));
+        geometry.Freeze();
+        InPlaceDimOverlay.Data = geometry;
+        InPlaceDimOverlay.Fill = Brushes.Black;
+        InPlaceDimOverlay.Opacity = _dimOpacity;
+    }
+
+    private void PositionResizeHandles()
+    {
+        void place(Thumb handle, double x, double y)
+        {
+            Canvas.SetLeft(handle, x - handle.Width / 2);
+            Canvas.SetTop(handle, y - handle.Height / 2);
+        }
+
+        var r = _regionBounds;
+        place(HandleNW, r.Left, r.Top);
+        place(HandleN, r.Left + r.Width / 2, r.Top);
+        place(HandleNE, r.Right, r.Top);
+        place(HandleE, r.Right, r.Top + r.Height / 2);
+        place(HandleSE, r.Right, r.Bottom);
+        place(HandleS, r.Left + r.Width / 2, r.Bottom);
+        place(HandleSW, r.Left, r.Bottom);
+        place(HandleW, r.Left, r.Top + r.Height / 2);
+    }
+
+    private void PositionInPlaceSizeBadge()
+    {
+        InPlaceSizeBadge.UpdateLayout();
+        var badgeWidth = Math.Max(InPlaceSizeBadge.ActualWidth, 64);
+        var badgeHeight = Math.Max(InPlaceSizeBadge.ActualHeight, 24);
+        var left = _regionBounds.Left + (_regionBounds.Width - badgeWidth) / 2;
+        var top = _regionBounds.Top - badgeHeight - 8;
+        if (top < 8)
+            top = _regionBounds.Top + 8;
+        Canvas.SetLeft(InPlaceSizeBadge, Math.Max(8, left));
+        Canvas.SetTop(InPlaceSizeBadge, top);
+    }
+
+    private void ResizeHandle_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (!_inPlaceMode || sender is not Thumb handle || handle.Tag is not string edge)
+            return;
+
+        var left = _regionBounds.Left;
+        var top = _regionBounds.Top;
+        var right = _regionBounds.Right;
+        var bottom = _regionBounds.Bottom;
+        const double minSize = 24;
+
+        switch (edge)
+        {
+            case "NW":
+                left += e.HorizontalChange;
+                top += e.VerticalChange;
+                break;
+            case "N":
+                top += e.VerticalChange;
+                break;
+            case "NE":
+                right += e.HorizontalChange;
+                top += e.VerticalChange;
+                break;
+            case "E":
+                right += e.HorizontalChange;
+                break;
+            case "SE":
+                right += e.HorizontalChange;
+                bottom += e.VerticalChange;
+                break;
+            case "S":
+                bottom += e.VerticalChange;
+                break;
+            case "SW":
+                left += e.HorizontalChange;
+                bottom += e.VerticalChange;
+                break;
+            case "W":
+                left += e.HorizontalChange;
+                break;
+        }
+
+        if (right - left < minSize)
+        {
+            if (edge is "E" or "NE" or "SE")
+                right = left + minSize;
+            else
+                left = right - minSize;
+        }
+
+        if (bottom - top < minSize)
+        {
+            if (edge is "S" or "SE" or "SW")
+                bottom = top + minSize;
+            else
+                top = bottom - minSize;
+        }
+
+        var hostWidth = Math.Max(ActualWidth, SystemParameters.PrimaryScreenWidth);
+        var hostHeight = Math.Max(ActualHeight, SystemParameters.PrimaryScreenHeight);
+        _regionBounds = ClampRegionBounds(new Rect(left, top, right - left, bottom - top), hostWidth, hostHeight);
+
+        // Resizing replaces the crop; clear annotations so coordinates stay coherent.
+        if (AnnotationCanvas.Strokes.Count > 0 || AnnotationCanvas.Children.Count > 0)
+            SaveUndoPoint();
+        AnnotationCanvas.Strokes.Clear();
+        AnnotationCanvas.Children.Clear();
+        ClearAnnotationSelection();
+        UpdateInPlaceLayout();
+    }
+
+    private static Rect ClampRegionBounds(Rect bounds, double hostWidth, double hostHeight)
+    {
+        var width = Math.Clamp(bounds.Width, 24, Math.Max(24, hostWidth));
+        var height = Math.Clamp(bounds.Height, 24, Math.Max(24, hostHeight));
+        var left = Math.Clamp(bounds.Left, 0, Math.Max(0, hostWidth - width));
+        var top = Math.Clamp(bounds.Top, 0, Math.Max(0, hostHeight - height));
+        return new Rect(left, top, width, height);
+    }
+
+    private static Int32Rect ToPixelRect(Rect bounds, BitmapSource screenshot, double hostWidth, double hostHeight)
+    {
+        var scaleX = screenshot.PixelWidth / Math.Max(1, hostWidth);
+        var scaleY = screenshot.PixelHeight / Math.Max(1, hostHeight);
+        var x = Math.Clamp((int)Math.Floor(bounds.Left * scaleX), 0, Math.Max(0, screenshot.PixelWidth - 1));
+        var y = Math.Clamp((int)Math.Floor(bounds.Top * scaleY), 0, Math.Max(0, screenshot.PixelHeight - 1));
+        var cropWidth = Math.Clamp((int)Math.Ceiling(bounds.Width * scaleX), 1, screenshot.PixelWidth - x);
+        var cropHeight = Math.Clamp((int)Math.Ceiling(bounds.Height * scaleY), 1, screenshot.PixelHeight - y);
+        return new Int32Rect(x, y, cropWidth, cropHeight);
+    }
 }

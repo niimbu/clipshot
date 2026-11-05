@@ -13,7 +13,8 @@
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         PreviewKeyDown="Window_PreviewKeyDown"
-        Loaded="Window_Loaded">
+        Loaded="Window_Loaded"
+        SizeChanged="Window_SizeChanged">
     <Window.Resources>
         <Style x:Key="EditorToolButton" TargetType="Button">
             <Setter Property="Width" Value="36"/>
@@ -89,15 +90,101 @@
             <Setter Property="Fill" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
             <Setter Property="StrokeThickness" Value="1.2"/>
         </Style>
+        <Style x:Key="ColorSwatchButton" TargetType="Button">
+            <Setter Property="Width" Value="18"/>
+            <Setter Property="Height" Value="18"/>
+            <Setter Property="Margin" Value="2,0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Swatch"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="#66FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="9"
+                                SnapsToDevicePixels="True"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Swatch" Property="BorderBrush" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter TargetName="Swatch" Property="BorderBrush" Value="White"/>
+                                <Setter TargetName="Swatch" Property="BorderThickness" Value="2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ResizeHandle" TargetType="Thumb">
+            <Setter Property="Width" Value="10"/>
+            <Setter Property="Height" Value="10"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#16181D"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
-        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+        <!-- In-place region editing: keep capture where it was selected. -->
+        <Grid x:Name="InPlaceHost" Visibility="Collapsed">
+            <Image x:Name="FullScreenImage" Stretch="Fill" IsHitTestVisible="False"/>
+            <Path x:Name="InPlaceDimOverlay" IsHitTestVisible="False" Fill="Black"/>
+            <Canvas x:Name="InPlaceCanvas" Background="Transparent">
+                <Border x:Name="RegionChrome"
+                        BorderBrush="White"
+                        BorderThickness="2"
+                        Background="Transparent"
+                        SnapsToDevicePixels="True">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.35" Color="Black"/>
+                    </Border.Effect>
+                    <Grid x:Name="InPlaceSurfaceSlot"/>
+                </Border>
+                <Thumb x:Name="HandleNW" Style="{StaticResource ResizeHandle}" DragDelta="ResizeHandle_DragDelta" Tag="NW" Cursor="SizeNWSE"/>
+                <Thumb x:Name="HandleN" Style="{StaticResource ResizeHandle}" DragDelta="ResizeHandle_DragDelta" Tag="N" Cursor="SizeNS"/>
+                <Thumb x:Name="HandleNE" Style="{StaticResource ResizeHandle}" DragDelta="ResizeHandle_DragDelta" Tag="NE" Cursor="SizeNESW"/>
+                <Thumb x:Name="HandleE" Style="{StaticResource ResizeHandle}" DragDelta="ResizeHandle_DragDelta" Tag="E" Cursor="SizeWE"/>
+                <Thumb x:Name="HandleSE" Style="{StaticResource ResizeHandle}" DragDelta="ResizeHandle_DragDelta" Tag="SE" Cursor="SizeNWSE"/>
+                <Thumb x:Name="HandleS" Style="{StaticResource ResizeHandle}" DragDelta="ResizeHandle_DragDelta" Tag="S" Cursor="SizeNS"/>
+                <Thumb x:Name="HandleSW" Style="{StaticResource ResizeHandle}" DragDelta="ResizeHandle_DragDelta" Tag="SW" Cursor="SizeNESW"/>
+                <Thumb x:Name="HandleW" Style="{StaticResource ResizeHandle}" DragDelta="ResizeHandle_DragDelta" Tag="W" Cursor="SizeWE"/>
+                <Border x:Name="InPlaceSizeBadge"
+                        Background="#F216181D"
+                        BorderBrush="#33FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="7"
+                        Padding="8,4"
+                        IsHitTestVisible="False">
+                    <TextBlock x:Name="InPlaceSizeText" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
+                </Border>
+            </Canvas>
+        </Grid>
+
+        <ScrollViewer x:Name="CenteredHost"
+                      HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Auto"
                       Background="Transparent"
                       Padding="24,24,24,96">
             <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Border Background="#0A0C10" CornerRadius="4" Padding="1" SnapsToDevicePixels="True">
+                <Border x:Name="CenteredSurfaceBorder"
+                        Background="#0A0C10"
+                        CornerRadius="4"
+                        Padding="1"
+                        SnapsToDevicePixels="True">
                     <Border.Effect>
                         <DropShadowEffect BlurRadius="28" ShadowDepth="0" Opacity="0.45" Color="Black"/>
                     </Border.Effect>
@@ -128,10 +215,10 @@
                 <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.4" Color="Black"/>
             </Border.Effect>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="PenButton" Click="Pen_Click" ToolTip="Pen" Style="{StaticResource EditorToolButton}" Tag="Active" AutomationProperties.Name="Pen">
+                <Button x:Name="PenButton" Click="Pen_Click" ToolTip="Pen · hold Shift for straight" Style="{StaticResource EditorToolButton}" Tag="Active" AutomationProperties.Name="Pen">
                     <Path Style="{StaticResource ToolIcon}" Data="M4,16 L6,10 L14,2 L18,6 L10,14 Z M14,2 L17,1 L19,3 L18,6"/>
                 </Button>
-                <Button x:Name="HighlightButton" Click="Highlight_Click" ToolTip="Highlight" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Highlight">
+                <Button x:Name="HighlightButton" Click="Highlight_Click" ToolTip="Highlight · hold Shift for straight" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Highlight">
                     <Path Style="{StaticResource ToolIcon}" Data="M5,15 L9,3 L13,3 L9,15 Z M4,17 H14"/>
                 </Button>
                 <Button x:Name="ArrowButton" Click="Arrow_Click" ToolTip="Arrow · hold Shift for straight angles" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Arrow">
@@ -157,6 +244,15 @@
                                    HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
                     </Grid>
                 </Button>
+                <Border Style="{StaticResource EditorToolDivider}"/>
+                <Button x:Name="ColorRedButton" Click="ColorSwatch_Click" Uid="#FFE11D48" Background="#FFE11D48" Style="{StaticResource ColorSwatchButton}" ToolTip="Red" AutomationProperties.Name="Color red"/>
+                <Button x:Name="ColorOrangeButton" Click="ColorSwatch_Click" Uid="#FFF97316" Background="#FFF97316" Style="{StaticResource ColorSwatchButton}" ToolTip="Orange" AutomationProperties.Name="Color orange"/>
+                <Button x:Name="ColorYellowButton" Click="ColorSwatch_Click" Uid="#FFFACC15" Background="#FFFACC15" Style="{StaticResource ColorSwatchButton}" ToolTip="Yellow" AutomationProperties.Name="Color yellow"/>
+                <Button x:Name="ColorGreenButton" Click="ColorSwatch_Click" Uid="#FF22C55E" Background="#FF22C55E" Style="{StaticResource ColorSwatchButton}" ToolTip="Green" AutomationProperties.Name="Color green"/>
+                <Button x:Name="ColorBlueButton" Click="ColorSwatch_Click" Uid="#FF3B82F6" Background="#FF3B82F6" Style="{StaticResource ColorSwatchButton}" ToolTip="Blue" AutomationProperties.Name="Color blue"/>
+                <Button x:Name="ColorPurpleButton" Click="ColorSwatch_Click" Uid="#FFA855F7" Background="#FFA855F7" Style="{StaticResource ColorSwatchButton}" ToolTip="Purple" AutomationProperties.Name="Color purple"/>
+                <Button x:Name="ColorWhiteButton" Click="ColorSwatch_Click" Uid="#FFF8FAFC" Background="#FFF8FAFC" Style="{StaticResource ColorSwatchButton}" ToolTip="White" AutomationProperties.Name="Color white"/>
+                <Button x:Name="ColorBlackButton" Click="ColorSwatch_Click" Uid="#FF0F172A" Background="#FF0F172A" Style="{StaticResource ColorSwatchButton}" ToolTip="Black" AutomationProperties.Name="Color black"/>
                 <Border Style="{StaticResource EditorToolDivider}"/>
                 <Button x:Name="BlurButton" Click="Blur_Click" ToolTip="Blur · hold Shift for square" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Blur">
                     <Path Style="{StaticResource ToolIcon}" Opacity="0.95"

@@ -19,7 +19,7 @@
     <Grid x:Name="RootGrid" SizeChanged="RootGrid_SizeChanged">
         <Image x:Name="ScreenshotImage" Stretch="Fill"/>
         <!-- Full-surface dim with a clear hole for the selection (must sit above the screenshot). -->
-        <Path x:Name="DimOverlay" IsHitTestVisible="False" Fill="#73000000"/>
+        <Path x:Name="DimOverlay" IsHitTestVisible="False" Fill="Black" Opacity="0.45"/>
         <Canvas x:Name="SelectionCanvas"
                 Background="Transparent"
                 MouseLeftButtonDown="SelectionCanvas_MouseLeftButtonDown"
