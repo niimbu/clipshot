@@ -322,10 +322,11 @@ public partial class MainWindow : Window
         if (restoreWindow)
             Hide();
 
+        var keepPreviousAppFocused = false;
         try
         {
             var bitmap = _captureService.CapturePrimaryScreen();
-            OpenScreenshotEditor(bitmap);
+            keepPreviousAppFocused = OpenScreenshotEditor(bitmap);
         }
         catch (Exception ex)
         {
@@ -335,15 +336,18 @@ public partial class MainWindow : Window
         }
         finally
         {
-            if (restoreWindow)
+            // After Space/copy (or save), stay in the tray so the app that was focused
+            // when the screenshot was taken keeps focus for pasting.
+            if (restoreWindow && !keepPreviousAppFocused)
                 Show();
         }
     }
 
-    private void OpenScreenshotEditor(BitmapSource bitmap) =>
+    private bool OpenScreenshotEditor(BitmapSource bitmap) =>
         OpenScreenshotEditor(bitmap, fullScreenshot: null, regionBounds: null, dimOpacity: _activeSettings.RegionDimOpacity);
 
-    private void OpenScreenshotEditor(BitmapSource bitmap, BitmapSource? fullScreenshot, Rect? regionBounds, double dimOpacity)
+    /// <returns>True when the user copied or saved — callers should not steal focus back.</returns>
+    private bool OpenScreenshotEditor(BitmapSource bitmap, BitmapSource? fullScreenshot, Rect? regionBounds, double dimOpacity)
     {
         var editor = fullScreenshot is not null && regionBounds is { Width: > 0, Height: > 0 } bounds
             ? new ScreenshotEditorWindow(bitmap, fullScreenshot, bounds, dimOpacity)
@@ -354,6 +358,7 @@ public partial class MainWindow : Window
             : editor.WasSaved
                 ? $"Saved screenshot  ·  {bitmap.PixelWidth} × {bitmap.PixelHeight}"
                 : "Screenshot editor closed";
+        return editor.WasCopied || editor.WasSaved;
     }
 
     private void SaveScreen_Click(object sender, RoutedEventArgs e)
@@ -399,13 +404,14 @@ public partial class MainWindow : Window
         if (restoreWindow)
             Hide();
 
+        var keepPreviousAppFocused = false;
         try
         {
             var screenshot = _captureService.CapturePrimaryScreen();
             var selector = new RegionSelectionWindow(screenshot, _activeSettings.RegionDimOpacity);
             var selected = selector.ShowDialog();
             if (selected == true && selector.SelectedImage is { } region)
-                OpenScreenshotEditor(region, selector.FullScreenshot, selector.SelectionBounds, _activeSettings.RegionDimOpacity);
+                keepPreviousAppFocused = OpenScreenshotEditor(region, selector.FullScreenshot, selector.SelectionBounds, _activeSettings.RegionDimOpacity);
             else
                 StatusText.Text = "Region capture cancelled";
         }
@@ -417,7 +423,9 @@ public partial class MainWindow : Window
         }
         finally
         {
-            if (restoreWindow)
+            // After Space/copy (or save), stay in the tray so the app that was focused
+            // when the screenshot was taken keeps focus for pasting.
+            if (restoreWindow && !keepPreviousAppFocused)
                 Show();
         }
     }
