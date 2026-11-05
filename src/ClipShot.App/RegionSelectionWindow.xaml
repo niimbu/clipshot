@@ -9,26 +9,23 @@
         ShowInTaskbar="False"
         Focusable="True"
         Cursor="Cross"
-        Background="#28000000"
+        Background="Black"
         FontFamily="Segoe UI"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Display"
-        Loaded="Window_Loaded">
-    <Grid>
+        Loaded="Window_Loaded"
+        ContentRendered="Window_ContentRendered">
+    <Grid x:Name="RootGrid" SizeChanged="RootGrid_SizeChanged">
         <Image x:Name="ScreenshotImage" Stretch="Fill"/>
+        <!-- Full-surface dim with a clear hole for the selection (must sit above the screenshot). -->
+        <Path x:Name="DimOverlay" IsHitTestVisible="False" Fill="#73000000"/>
         <Canvas x:Name="SelectionCanvas"
                 Background="Transparent"
-                SizeChanged="SelectionCanvas_SizeChanged"
                 MouseLeftButtonDown="SelectionCanvas_MouseLeftButtonDown"
                 MouseMove="SelectionCanvas_MouseMove"
                 MouseLeftButtonUp="SelectionCanvas_MouseLeftButtonUp"
                 MouseRightButtonDown="SelectionCanvas_MouseRightButtonDown">
-            <Rectangle x:Name="DimFull" Fill="#8A000000" IsHitTestVisible="False"/>
-            <Rectangle x:Name="DimTop" Fill="#8A000000" Visibility="Collapsed" IsHitTestVisible="False"/>
-            <Rectangle x:Name="DimLeft" Fill="#8A000000" Visibility="Collapsed" IsHitTestVisible="False"/>
-            <Rectangle x:Name="DimRight" Fill="#8A000000" Visibility="Collapsed" IsHitTestVisible="False"/>
-            <Rectangle x:Name="DimBottom" Fill="#8A000000" Visibility="Collapsed" IsHitTestVisible="False"/>
             <Border x:Name="SelectionRect"
                     Visibility="Collapsed"
                     BorderBrush="White"
@@ -61,7 +58,7 @@
                 CornerRadius="999"
                 Padding="16,8"
                 IsHitTestVisible="False">
-            <TextBlock Text="Drag to select an area    ·    Esc cancels"
+            <TextBlock Text="Drag to select    ·    Shift for square    ·    Esc cancels"
                        Foreground="White"
                        FontSize="13"/>
         </Border>

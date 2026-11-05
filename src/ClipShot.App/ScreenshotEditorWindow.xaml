@@ -134,16 +134,16 @@
                 <Button x:Name="HighlightButton" Click="Highlight_Click" ToolTip="Highlight" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Highlight">
                     <Path Style="{StaticResource ToolIcon}" Data="M5,15 L9,3 L13,3 L9,15 Z M4,17 H14"/>
                 </Button>
-                <Button x:Name="ArrowButton" Click="Arrow_Click" ToolTip="Arrow" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Arrow">
+                <Button x:Name="ArrowButton" Click="Arrow_Click" ToolTip="Arrow · hold Shift for straight angles" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Arrow">
                     <Path Style="{StaticResource ToolIcon}" Data="M3,17 L17,3 M10,3 H17 V10"/>
                 </Button>
-                <Button x:Name="LineButton" Click="Line_Click" ToolTip="Line" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Line">
+                <Button x:Name="LineButton" Click="Line_Click" ToolTip="Line · hold Shift for straight angles" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Line">
                     <Path Style="{StaticResource ToolIcon}" Data="M3,17 L17,3"/>
                 </Button>
-                <Button x:Name="RectangleButton" Click="Rectangle_Click" ToolTip="Rectangle" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Rectangle">
+                <Button x:Name="RectangleButton" Click="Rectangle_Click" ToolTip="Rectangle · hold Shift for square" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Rectangle">
                     <Path Style="{StaticResource ToolIcon}" Data="M3,4 H17 V16 H3 Z"/>
                 </Button>
-                <Button x:Name="EllipseButton" Click="Ellipse_Click" ToolTip="Ellipse" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Ellipse">
+                <Button x:Name="EllipseButton" Click="Ellipse_Click" ToolTip="Ellipse · hold Shift for circle" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Ellipse">
                     <Path Style="{StaticResource ToolIcon}" Data="M10,3 A7,7 0 1 1 9.9,3"/>
                 </Button>
                 <Button x:Name="TextButton" Click="Text_Click" ToolTip="Text" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Text">
@@ -158,17 +158,17 @@
                     </Grid>
                 </Button>
                 <Border Style="{StaticResource EditorToolDivider}"/>
-                <Button x:Name="BlurButton" Click="Blur_Click" ToolTip="Blur" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Blur">
+                <Button x:Name="BlurButton" Click="Blur_Click" ToolTip="Blur · hold Shift for square" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Blur">
                     <Path Style="{StaticResource ToolIcon}" Opacity="0.95"
                           Data="M6,10 A4,4 0 1 1 6.1,10 M10,10 A4,4 0 1 1 10.1,10 M14,10 A4,4 0 1 1 14.1,10"/>
                 </Button>
-                <Button x:Name="PixelateButton" Click="Pixelate_Click" ToolTip="Pixelate" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Pixelate">
+                <Button x:Name="PixelateButton" Click="Pixelate_Click" ToolTip="Pixelate · hold Shift for square" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Pixelate">
                     <Path Style="{StaticResource ToolIcon}" Data="M3,3 H8 V8 H3 Z M12,3 H17 V8 H12 Z M3,12 H8 V17 H3 Z M12,12 H17 V17 H12 Z"/>
                 </Button>
                 <Button x:Name="EraseButton" Click="Erase_Click" ToolTip="Eraser — scrub annotations" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Erase">
                     <Path Style="{StaticResource ToolIcon}" Data="M4,12 L10,4 L16,10 L10,16 Z M7,15 H17"/>
                 </Button>
-                <Button x:Name="SelectButton" Click="Select_Click" ToolTip="Select — click an annotation to move or delete it" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Select">
+                <Button x:Name="SelectButton" Click="Select_Click" ToolTip="Select — click to select, drag to move, Delete to remove" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Select">
                     <Path Style="{StaticResource ToolIconFill}" Data="M4,3 L4,15 L8,12 L11,18 L13,17 L10,11 L15,11 Z"/>
                 </Button>
                 <Button x:Name="DeleteButton" Click="DeleteSelection_Click" ToolTip="Delete selected annotation (or the last one)" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Delete selection">
@@ -182,7 +182,7 @@
                     <Path Style="{StaticResource ToolIcon}" Data="M13,8 H16 V5 M16,8 A6,6 0 1 0 15,14"/>
                 </Button>
                 <Border Style="{StaticResource EditorToolDivider}"/>
-                <Button Click="Copy_Click" ToolTip="Copy and close (Space)" Style="{StaticResource EditorPrimaryToolButton}" AutomationProperties.Name="Copy" Width="Auto" MinWidth="72" Padding="12,0">
+                <Button Click="Copy_Click" ToolTip="Copy and close (Space — disabled while typing text)" Style="{StaticResource EditorPrimaryToolButton}" AutomationProperties.Name="Copy" Width="Auto" MinWidth="72" Padding="12,0">
                     <StackPanel Orientation="Horizontal">
                         <Path Style="{StaticResource ToolIcon}" Width="14" Height="14" Data="M7,3 H15 V13 H7 Z M5,5 V17 H13"/>
                         <TextBlock Text="Copy" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
