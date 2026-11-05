@@ -340,9 +340,14 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OpenScreenshotEditor(BitmapSource bitmap)
+    private void OpenScreenshotEditor(BitmapSource bitmap) =>
+        OpenScreenshotEditor(bitmap, fullScreenshot: null, regionBounds: null, dimOpacity: _activeSettings.RegionDimOpacity);
+
+    private void OpenScreenshotEditor(BitmapSource bitmap, BitmapSource? fullScreenshot, Rect? regionBounds, double dimOpacity)
     {
-        var editor = new ScreenshotEditorWindow(bitmap);
+        var editor = fullScreenshot is not null && regionBounds is { Width: > 0, Height: > 0 } bounds
+            ? new ScreenshotEditorWindow(bitmap, fullScreenshot, bounds, dimOpacity)
+            : new ScreenshotEditorWindow(bitmap);
         editor.ShowDialog();
         StatusText.Text = editor.WasCopied
             ? $"Copied screenshot  ·  {bitmap.PixelWidth} × {bitmap.PixelHeight}"
@@ -400,7 +405,7 @@ public partial class MainWindow : Window
             var selector = new RegionSelectionWindow(screenshot, _activeSettings.RegionDimOpacity);
             var selected = selector.ShowDialog();
             if (selected == true && selector.SelectedImage is { } region)
-                OpenScreenshotEditor(region);
+                OpenScreenshotEditor(region, selector.FullScreenshot, selector.SelectionBounds, _activeSettings.RegionDimOpacity);
             else
                 StatusText.Text = "Region capture cancelled";
         }

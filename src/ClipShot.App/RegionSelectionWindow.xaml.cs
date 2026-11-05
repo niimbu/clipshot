@@ -8,30 +8,37 @@ using Point = System.Windows.Point;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Color = System.Windows.Media.Color;
+using Brushes = System.Windows.Media.Brushes;
 
 namespace ClipShot;
 
 public partial class RegionSelectionWindow : Window
 {
     private readonly BitmapSource _screenshot;
-    private readonly SolidColorBrush _dimBrush;
+    private readonly double _dimOpacity;
     private Point _startPoint;
     private bool _isSelecting;
     private Rect? _selectionBounds;
 
+    public BitmapSource FullScreenshot => _screenshot;
     public BitmapSource? SelectedImage { get; private set; }
+    public Rect SelectionBounds { get; private set; }
+    public Int32Rect SelectionPixels { get; private set; }
 
     public RegionSelectionWindow(BitmapSource screenshot, double dimOpacity = 0.45)
     {
         InitializeComponent();
         _screenshot = screenshot;
         ScreenshotImage.Source = screenshot;
+        _dimOpacity = Math.Clamp(dimOpacity, 0, 0.9);
+        ApplyDimStyle();
+    }
 
-        var opacity = Math.Clamp(dimOpacity, 0.05, 0.9);
-        var alpha = (byte)Math.Clamp((int)Math.Round(opacity * 255), 20, 230);
-        _dimBrush = new SolidColorBrush(Color.FromArgb(alpha, 0, 0, 0));
-        _dimBrush.Freeze();
-        DimOverlay.Fill = _dimBrush;
+    private void ApplyDimStyle()
+    {
+        // Solid black + Opacity is more reliable than baking alpha into the brush.
+        DimOverlay.Fill = Brushes.Black;
+        DimOverlay.Opacity = _dimOpacity;
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -63,6 +70,7 @@ public partial class RegionSelectionWindow : Window
 
         geometry.Freeze();
         DimOverlay.Data = geometry;
+        ApplyDimStyle();
     }
 
     private void SelectionCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -108,6 +116,8 @@ public partial class RegionSelectionWindow : Window
         var cropped = new CroppedBitmap(_screenshot, pixels);
         cropped.Freeze();
         SelectedImage = cropped;
+        SelectionBounds = bounds;
+        SelectionPixels = pixels;
         DialogResult = true;
     }
 
@@ -150,6 +160,8 @@ public partial class RegionSelectionWindow : Window
         _isSelecting = false;
         _selectionBounds = null;
         SelectedImage = null;
+        SelectionBounds = default;
+        SelectionPixels = default;
         SelectionRect.Visibility = Visibility.Collapsed;
         SelectionRect.Width = 0;
         SelectionRect.Height = 0;

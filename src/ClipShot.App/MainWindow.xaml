@@ -210,16 +210,16 @@
                                    MinWidth="36"
                                    TextAlignment="Right"/>
                         <Slider x:Name="DimOpacitySlider"
-                                Minimum="5"
+                                Minimum="0"
                                 Maximum="90"
                                 Value="45"
                                 TickFrequency="5"
                                 IsSnapToTickEnabled="True"
                                 VerticalAlignment="Center"
-                                ToolTip="Darkness of the dimmed area outside your region selection"
+                                ToolTip="Opacity of the dimmed area outside your region (0% = clear, 90% = very dark)"
                                 ValueChanged="DimOpacitySlider_ValueChanged"/>
                     </DockPanel>
-                    <TextBlock Text="Controls how dark the screen is outside the selected region. Lower is clearer."
+                    <TextBlock Text="0% leaves the outside fully visible; higher values darken everything outside the selection."
                                FontSize="11"
                                Foreground="{StaticResource MutedBrush}"
                                Margin="0,4,0,0"
