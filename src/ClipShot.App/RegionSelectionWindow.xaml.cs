@@ -4,11 +4,9 @@ using System.Windows.Input;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 using Point = System.Windows.Point;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
-using Rectangle = System.Windows.Shapes.Rectangle;
 using Color = System.Windows.Media.Color;
 
 namespace ClipShot;
@@ -19,6 +17,7 @@ public partial class RegionSelectionWindow : Window
     private readonly SolidColorBrush _dimBrush;
     private Point _startPoint;
     private bool _isSelecting;
+    private Rect? _selectionBounds;
 
     public BitmapSource? SelectedImage { get; private set; }
 
@@ -27,35 +26,43 @@ public partial class RegionSelectionWindow : Window
         InitializeComponent();
         _screenshot = screenshot;
         ScreenshotImage.Source = screenshot;
-        var alpha = (byte)Math.Clamp((int)Math.Round(Math.Clamp(dimOpacity, 0.05, 0.9) * 255), 13, 230);
+
+        var opacity = Math.Clamp(dimOpacity, 0.05, 0.9);
+        var alpha = (byte)Math.Clamp((int)Math.Round(opacity * 255), 20, 230);
         _dimBrush = new SolidColorBrush(Color.FromArgb(alpha, 0, 0, 0));
         _dimBrush.Freeze();
-        DimFull.Fill = _dimBrush;
-        DimTop.Fill = _dimBrush;
-        DimLeft.Fill = _dimBrush;
-        DimRight.Fill = _dimBrush;
-        DimBottom.Fill = _dimBrush;
-        // Keep the backdrop faintly visible instead of solid black.
-        Background = new SolidColorBrush(Color.FromArgb((byte)Math.Min(alpha, (byte)40), 0, 0, 0));
+        DimOverlay.Fill = _dimBrush;
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        SizeDimFull();
+        RefreshDimOverlay(null);
         Activate();
         Focus();
     }
 
-    private void SelectionCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (DimFull.Visibility == Visibility.Visible)
-            SizeDimFull();
-    }
+    private void Window_ContentRendered(object? sender, EventArgs e) => RefreshDimOverlay(_selectionBounds);
 
-    private void SizeDimFull()
+    private void RootGrid_SizeChanged(object sender, SizeChangedEventArgs e) =>
+        RefreshDimOverlay(_selectionBounds);
+
+    private void RefreshDimOverlay(Rect? hole)
     {
-        DimFull.Width = Math.Max(0, SelectionCanvas.ActualWidth);
-        DimFull.Height = Math.Max(0, SelectionCanvas.ActualHeight);
+        var width = Math.Max(RootGrid.ActualWidth, SelectionCanvas.ActualWidth);
+        var height = Math.Max(RootGrid.ActualHeight, SelectionCanvas.ActualHeight);
+        if (width < 1 || height < 1)
+        {
+            width = Math.Max(width, SystemParameters.PrimaryScreenWidth);
+            height = Math.Max(height, SystemParameters.PrimaryScreenHeight);
+        }
+
+        var geometry = new GeometryGroup { FillRule = FillRule.EvenOdd };
+        geometry.Children.Add(new RectangleGeometry(new Rect(0, 0, width, height)));
+        if (hole is { Width: > 0, Height: > 0 } selection)
+            geometry.Children.Add(new RectangleGeometry(selection));
+
+        geometry.Freeze();
+        DimOverlay.Data = geometry;
     }
 
     private void SelectionCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -73,7 +80,7 @@ public partial class RegionSelectionWindow : Window
         if (!_isSelecting)
             return;
 
-        var current = e.GetPosition(SelectionCanvas);
+        var current = ConstrainSelectionPoint(e.GetPosition(SelectionCanvas));
         var bounds = Normalize(_startPoint, current);
         if (bounds.Width < 1 && bounds.Height < 1)
             return;
@@ -89,7 +96,7 @@ public partial class RegionSelectionWindow : Window
         _isSelecting = false;
         SelectionCanvas.ReleaseMouseCapture();
 
-        var current = e.GetPosition(SelectionCanvas);
+        var current = ConstrainSelectionPoint(e.GetPosition(SelectionCanvas));
         var bounds = Normalize(_startPoint, current);
         if (bounds.Width < 3 || bounds.Height < 3)
         {
@@ -106,14 +113,8 @@ public partial class RegionSelectionWindow : Window
 
     private void UpdateChrome(Rect bounds)
     {
-        var canvasWidth = SelectionCanvas.ActualWidth;
-        var canvasHeight = SelectionCanvas.ActualHeight;
-
-        DimFull.Visibility = Visibility.Collapsed;
-        SetRect(DimTop, 0, 0, canvasWidth, Math.Max(0, bounds.Top));
-        SetRect(DimLeft, 0, bounds.Top, Math.Max(0, bounds.Left), Math.Max(0, bounds.Height));
-        SetRect(DimRight, bounds.Right, bounds.Top, Math.Max(0, canvasWidth - bounds.Right), Math.Max(0, bounds.Height));
-        SetRect(DimBottom, 0, bounds.Bottom, canvasWidth, Math.Max(0, canvasHeight - bounds.Bottom));
+        _selectionBounds = bounds;
+        RefreshDimOverlay(bounds);
 
         SelectionRect.Visibility = Visibility.Visible;
         Canvas.SetLeft(SelectionRect, bounds.Left);
@@ -125,12 +126,14 @@ public partial class RegionSelectionWindow : Window
         SizeText.Text = $"{pixels.Width} × {pixels.Height}";
         SizeBadge.Visibility = Visibility.Visible;
         HintBorder.Visibility = Visibility.Collapsed;
-        PositionSizeBadge(bounds, canvasWidth, canvasHeight);
+        PositionSizeBadge(bounds);
     }
 
-    private void PositionSizeBadge(Rect bounds, double canvasWidth, double canvasHeight)
+    private void PositionSizeBadge(Rect bounds)
     {
         SizeBadge.UpdateLayout();
+        var canvasWidth = Math.Max(SelectionCanvas.ActualWidth, RootGrid.ActualWidth);
+        var canvasHeight = Math.Max(SelectionCanvas.ActualHeight, RootGrid.ActualHeight);
         var badgeWidth = SizeBadge.ActualWidth;
         var badgeHeight = SizeBadge.ActualHeight;
         var badgeLeft = Clamp(bounds.Left + (bounds.Width - badgeWidth) / 2, 10, canvasWidth - badgeWidth - 10);
@@ -145,18 +148,14 @@ public partial class RegionSelectionWindow : Window
     private void ResetSelectionVisual()
     {
         _isSelecting = false;
+        _selectionBounds = null;
         SelectedImage = null;
         SelectionRect.Visibility = Visibility.Collapsed;
         SelectionRect.Width = 0;
         SelectionRect.Height = 0;
-        DimTop.Visibility = Visibility.Collapsed;
-        DimLeft.Visibility = Visibility.Collapsed;
-        DimRight.Visibility = Visibility.Collapsed;
-        DimBottom.Visibility = Visibility.Collapsed;
         SizeBadge.Visibility = Visibility.Collapsed;
         HintBorder.Visibility = Visibility.Visible;
-        DimFull.Visibility = Visibility.Visible;
-        SizeDimFull();
+        RefreshDimOverlay(null);
         Cursor = Cursors.Cross;
     }
 
@@ -171,20 +170,24 @@ public partial class RegionSelectionWindow : Window
         return new Int32Rect(x, y, cropWidth, cropHeight);
     }
 
+    private Point ConstrainSelectionPoint(Point current)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift)
+            return current;
+
+        var dx = current.X - _startPoint.X;
+        var dy = current.Y - _startPoint.Y;
+        var side = Math.Max(Math.Abs(dx), Math.Abs(dy));
+        return new Point(
+            _startPoint.X + Math.Sign(dx == 0 ? 1 : dx) * side,
+            _startPoint.Y + Math.Sign(dy == 0 ? 1 : dy) * side);
+    }
+
     private static Rect Normalize(Point start, Point current)
     {
         var left = Math.Min(start.X, current.X);
         var top = Math.Min(start.Y, current.Y);
         return new Rect(left, top, Math.Abs(current.X - start.X), Math.Abs(current.Y - start.Y));
-    }
-
-    private static void SetRect(Rectangle rectangle, double x, double y, double width, double height)
-    {
-        rectangle.Visibility = Visibility.Visible;
-        Canvas.SetLeft(rectangle, x);
-        Canvas.SetTop(rectangle, y);
-        rectangle.Width = Math.Max(0, width);
-        rectangle.Height = Math.Max(0, height);
     }
 
     private static double Clamp(double value, double min, double max)

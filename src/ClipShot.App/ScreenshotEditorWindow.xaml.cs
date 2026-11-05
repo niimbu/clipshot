@@ -357,7 +357,7 @@ public partial class ScreenshotEditorWindow : Window
         {
             _previewShape = CreateShape(_tool);
             AnnotationCanvas.Children.Add(_previewShape);
-            UpdateShape(position);
+            UpdateShape(ConstrainDrawingPoint(position));
             AnnotationCanvas.CaptureMouse();
             e.Handled = true;
             return;
@@ -373,7 +373,7 @@ public partial class ScreenshotEditorWindow : Window
                 Fill = new SolidColorBrush(Color.FromArgb(35, 255, 120, 0))
             };
             AnnotationCanvas.Children.Add(_previewShape);
-            UpdateShape(position);
+            UpdateShape(ConstrainDrawingPoint(position));
             AnnotationCanvas.CaptureMouse();
             e.Handled = true;
         }
@@ -392,7 +392,7 @@ public partial class ScreenshotEditorWindow : Window
         }
         else if (_previewShape is not null)
         {
-            UpdateShape(position);
+            UpdateShape(ConstrainDrawingPoint(position));
             e.Handled = true;
         }
     }
@@ -427,7 +427,7 @@ public partial class ScreenshotEditorWindow : Window
         }
 
         AnnotationCanvas.ReleaseMouseCapture();
-        var end = e.GetPosition(AnnotationCanvas);
+        var end = ConstrainDrawingPoint(e.GetPosition(AnnotationCanvas));
         UpdateShape(end);
         AnnotationCanvas.Children.Remove(_previewShape);
         _previewShape = null;
@@ -471,6 +471,46 @@ public partial class ScreenshotEditorWindow : Window
         }
 
         AnnotationCanvas.Children.Add(shape);
+    }
+
+    private Point ConstrainDrawingPoint(Point current)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift)
+            return current;
+
+        return _tool switch
+        {
+            EditorTool.Line or EditorTool.Arrow => SnapPointToAxisOrDiagonal(_start, current),
+            EditorTool.Rectangle or EditorTool.Ellipse or EditorTool.Blur or EditorTool.Pixelate
+                => SnapPointToSquare(_start, current),
+            _ => current
+        };
+    }
+
+    private static Point SnapPointToAxisOrDiagonal(Point start, Point current)
+    {
+        var dx = current.X - start.X;
+        var dy = current.Y - start.Y;
+        var absX = Math.Abs(dx);
+        var absY = Math.Abs(dy);
+        if (absX < 0.001 && absY < 0.001)
+            return current;
+
+        var angle = Math.Atan2(dy, dx) * 180d / Math.PI;
+        var snapped = Math.Round(angle / 45d) * 45d;
+        var radians = snapped * Math.PI / 180d;
+        var length = Math.Sqrt(dx * dx + dy * dy);
+        return new Point(start.X + Math.Cos(radians) * length, start.Y + Math.Sin(radians) * length);
+    }
+
+    private static Point SnapPointToSquare(Point start, Point current)
+    {
+        var dx = current.X - start.X;
+        var dy = current.Y - start.Y;
+        var side = Math.Max(Math.Abs(dx), Math.Abs(dy));
+        return new Point(
+            start.X + Math.Sign(dx == 0 ? 1 : dx) * side,
+            start.Y + Math.Sign(dy == 0 ? 1 : dy) * side);
     }
 
     private static Shape CreateShape(EditorTool tool) => tool switch

@@ -195,7 +195,7 @@
                               Unchecked="StartWithWindows_Changed"/>
                     <DockPanel Margin="0,14,0,0" LastChildFill="True">
                         <TextBlock DockPanel.Dock="Left"
-                                   Text="Region overlay"
+                                   Text="Region dim"
                                    FontSize="12.5"
                                    Foreground="{StaticResource InkBrush}"
                                    VerticalAlignment="Center"
@@ -216,13 +216,14 @@
                                 TickFrequency="5"
                                 IsSnapToTickEnabled="True"
                                 VerticalAlignment="Center"
-                                ToolTip="How dark the dimmed area is while selecting a region"
+                                ToolTip="Darkness of the dimmed area outside your region selection"
                                 ValueChanged="DimOpacitySlider_ValueChanged"/>
                     </DockPanel>
-                    <TextBlock Text="Lower is more transparent while you drag a region."
+                    <TextBlock Text="Controls how dark the screen is outside the selected region. Lower is clearer."
                                FontSize="11"
                                Foreground="{StaticResource MutedBrush}"
-                               Margin="0,4,0,0"/>
+                               Margin="0,4,0,0"
+                               TextWrapping="Wrap"/>
                 </StackPanel>
             </Grid>
         </Border>
