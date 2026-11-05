@@ -25,9 +25,16 @@ If Chrome displays a warning for an official release, confirm the download came 
 
 If the official release is incorrectly detected, submit the exact release URL and file to Google's [Safe Browsing incorrect warning reporting](https://safebrowsing.google.com/safebrowsing/report_error/). Include the version and SHA-256 hash from `SHA256SUMS.txt`.
 
+## Versioning
+
+Keep the `<Version>` in `src/ClipShot.App/ClipShot.App.csproj` identical to the Git tag you push (without the leading `v`). The in-app updater compares that assembly version to the latest GitHub release tag. If the assembly version is higher than the published tag, “Check for updates” will incorrectly report that the app is already up to date.
+
+Example: for tag `v1.0.1`, set `<Version>1.0.1</Version>` before tagging.
+
 ## Release assets
 
 Each release publishes:
 - `ClipShot.exe` — the direct Windows executable
 - `ClipShot.zip` — the portable distribution (browser download name: ClipShot.zip)
 - `SHA256SUMS.txt` — SHA-256 hashes for the executable and ZIP
+

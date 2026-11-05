@@ -73,18 +73,18 @@ public partial class MainWindow : Window
             if (release.Version > currentVersion)
             {
                 _latestReleaseUri = release.Url;
-                UpdateNoticeTitle.Text = $"ClipShot {release.Version} is available";
-                UpdateNoticeDetails.Text = $"You're using version {currentVersion}. Update now to install the latest version.";
+                UpdateNoticeTitle.Text = $"ClipShot {FormatVersion(release.Version)} is available";
+                UpdateNoticeDetails.Text = $"You're using version {FormatVersion(currentVersion)}. Update now to install the latest version.";
                 UpdateNoticePanel.Visibility = Visibility.Visible;
                 if (manual)
-                    StatusText.Text = $"Update found: ClipShot {release.Version} is available.";
+                    StatusText.Text = $"Update found: ClipShot {FormatVersion(release.Version)} is available.";
             }
             else
             {
                 _latestReleaseUri = release.Url;
                 UpdateNoticePanel.Visibility = Visibility.Collapsed;
                 if (manual)
-                    StatusText.Text = $"You're up to date · ClipShot {currentVersion}.";
+                    StatusText.Text = $"You're up to date · ClipShot {FormatVersion(currentVersion)} (latest {FormatVersion(release.Version)}).";
             }
         }
         catch (Exception ex)
@@ -189,6 +189,11 @@ public partial class MainWindow : Window
         return IntPtr.Zero;
     }
 
+    private static string FormatVersion(Version version) =>
+        version.Revision <= 0
+            ? $"{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}"
+            : version.ToString();
+
     private void CaptureScreen_Click(object sender, RoutedEventArgs e) => CaptureScreen();
 
     private void CaptureScreen()
@@ -232,7 +237,7 @@ public partial class MainWindow : Window
 
     private void OpenScreenshotEditor(BitmapSource bitmap)
     {
-        var editor = new ScreenshotEditorWindow(bitmap) { Owner = this };
+        var editor = new ScreenshotEditorWindow(bitmap);
         editor.ShowDialog();
         StatusText.Text = editor.WasCopied
             ? $"Copied screenshot  ·  {bitmap.PixelWidth} × {bitmap.PixelHeight}"
