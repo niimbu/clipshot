@@ -62,10 +62,22 @@ public partial class ScreenshotEditorWindow : Window
     private bool _selectionResizing;
     private string? _resizeEdge;
     private Rect _resizeOriginBounds;
+    private object? _resizeOriginGeometry;
     private const string EffectBlurTag = "Effect:Blur";
     private const string EffectPixelateTag = "Effect:Pixelate";
     private const string ResizeHandleTag = "ResizeHandle";
     private static readonly string[] ResizeEdges = ["NW", "N", "NE", "E", "SE", "S", "SW", "W"];
+
+    private sealed class ArrowAnnotation
+    {
+        public Point Start { get; set; }
+        public Point End { get; set; }
+    }
+
+    private sealed class EffectAnnotation
+    {
+        public required string Kind { get; init; } // EffectBlurTag or EffectPixelateTag
+    }
 
     public bool WasCopied { get; private set; }
     public bool WasSaved { get; private set; }
@@ -755,6 +767,7 @@ public partial class ScreenshotEditorWindow : Window
             effect.Width = rect.Width;
             effect.Height = rect.Height;
             AnnotationCanvas.Children.Add(effect);
+            RefreshEffectPreview(effect);
             return;
         }
 
@@ -770,6 +783,7 @@ public partial class ScreenshotEditorWindow : Window
         else if (shape is Path arrow)
         {
             PlaceElement(arrow, 0, 0);
+            arrow.Tag = new ArrowAnnotation { Start = _start, End = end };
             arrow.Data = BuildArrowGeometry(_start, end);
         }
         else
@@ -784,7 +798,7 @@ public partial class ScreenshotEditorWindow : Window
 
     private static Rectangle CreateEffectShape(bool blur) => new()
     {
-        Tag = blur ? EffectBlurTag : EffectPixelateTag,
+        Tag = new EffectAnnotation { Kind = blur ? EffectBlurTag : EffectPixelateTag },
         Stroke = blur
             ? new SolidColorBrush(Color.FromArgb(220, 96, 165, 250))
             : new SolidColorBrush(Color.FromArgb(220, 251, 146, 60)),
@@ -793,6 +807,54 @@ public partial class ScreenshotEditorWindow : Window
         Fill = blur
             ? new SolidColorBrush(Color.FromArgb(55, 96, 165, 250))
             : new SolidColorBrush(Color.FromArgb(55, 251, 146, 60))
+    };
+
+    private void RefreshEffectPreview(Rectangle effect)
+    {
+        if (PreviewImage.Source is not BitmapSource source)
+            return;
+
+        var kind = GetEffectKind(effect);
+        if (kind is null)
+            return;
+
+        var left = InkCanvas.GetLeft(effect);
+        var top = InkCanvas.GetTop(effect);
+        if (double.IsNaN(left)) left = 0;
+        if (double.IsNaN(top)) top = 0;
+        var bounds = new Rect(left, top, Math.Max(1, effect.Width), Math.Max(1, effect.Height));
+        var block = kind == EffectBlurTag ? 7 : 16;
+
+        try
+        {
+            var mosaicked = ApplyMosaicToBitmap(source, bounds, block);
+            var pixels = ToPixelRect(bounds, source,
+                Math.Max(1, AnnotationCanvas.Width),
+                Math.Max(1, AnnotationCanvas.Height));
+            if (pixels.Width < 1 || pixels.Height < 1)
+                return;
+
+            var crop = new CroppedBitmap(mosaicked, pixels);
+            crop.Freeze();
+            effect.Fill = new ImageBrush(crop) { Stretch = Stretch.Fill };
+        }
+        catch
+        {
+            // Keep the tinted placeholder if preview generation fails.
+        }
+    }
+
+    private void RefreshAllEffectPreviews()
+    {
+        foreach (var effect in AnnotationCanvas.Children.OfType<Rectangle>().Where(IsEffectAnnotation))
+            RefreshEffectPreview(effect);
+    }
+
+    private static string? GetEffectKind(UIElement element) => element switch
+    {
+        Shape { Tag: EffectAnnotation effect } => effect.Kind,
+        Shape { Tag: string tag } when tag is EffectBlurTag or EffectPixelateTag => tag,
+        _ => null
     };
 
     private Point ConstrainDrawingPoint(Point current)
@@ -996,6 +1058,9 @@ public partial class ScreenshotEditorWindow : Window
         _selectionMoving = true;
         _selectionDragStart = position;
         _beforeAction = RenderAnnotatedImage();
+        _resizeOriginGeometry = _selectedElement is not null
+            ? CaptureGeometrySnapshot(_selectedElement)
+            : null;
 
         if (_selectedElement is not null)
         {
@@ -1019,7 +1084,33 @@ public partial class ScreenshotEditorWindow : Window
 
         if (_selectedElement is not null)
         {
-            PlaceElement(_selectedElement, _selectionOriginLeft + dx, _selectionOriginTop + dy);
+            if (_selectedElement is Line line && _resizeOriginGeometry is (double x1, double y1, double x2, double y2, double left, double top))
+            {
+                line.X1 = x1;
+                line.Y1 = y1;
+                line.X2 = x2;
+                line.Y2 = y2;
+                PlaceElement(line, left + dx, top + dy);
+            }
+            else if (_selectedElement is Path path && _resizeOriginGeometry is ArrowAnnotation originArrow)
+            {
+                var moved = new ArrowAnnotation
+                {
+                    Start = new Point(originArrow.Start.X + dx, originArrow.Start.Y + dy),
+                    End = new Point(originArrow.End.X + dx, originArrow.End.Y + dy)
+                };
+                path.Tag = moved;
+                path.Data = BuildArrowGeometry(moved.Start, moved.End);
+                PlaceElement(path, 0, 0);
+            }
+            else
+            {
+                PlaceElement(_selectedElement, _selectionOriginLeft + dx, _selectionOriginTop + dy);
+            }
+
+            if (_selectedElement is Rectangle effect && IsEffectAnnotation(effect))
+                RefreshEffectPreview(effect);
+
             UpdateSelectionChrome();
             return;
         }
@@ -1145,31 +1236,56 @@ public partial class ScreenshotEditorWindow : Window
             HideResizeHandles();
     }
 
-    private static bool IsResizableAnnotation(UIElement element) =>
-        element is Ellipse
-        || element is Rectangle
-        || IsEffectAnnotation(element);
+    private bool IsResizableAnnotation(UIElement element) =>
+        IsMovableAnnotation(element);
 
     private static bool IsEffectAnnotation(UIElement element) =>
-        element is Shape { Tag: string tag }
-        && (tag == EffectBlurTag || tag == EffectPixelateTag);
+        GetEffectKind(element) is not null;
 
     private IEnumerable<(Rect Bounds, int Block)> CollectEffectRegions()
     {
-        foreach (var child in AnnotationCanvas.Children.OfType<Shape>())
+        foreach (var child in AnnotationCanvas.Children.OfType<UIElement>())
         {
-            if (child.Tag is not string tag)
+            var kind = GetEffectKind(child);
+            if (kind is null)
                 continue;
-            var block = tag switch
-            {
-                EffectBlurTag => 7,
-                EffectPixelateTag => 16,
-                _ => 0
-            };
-            if (block == 0)
-                continue;
-            yield return (GetAnnotationBounds(child), block);
+            var block = kind == EffectBlurTag ? 7 : 16;
+            yield return (GetLayoutBounds(child), block);
         }
+    }
+
+    private static Rect GetLayoutBounds(UIElement element)
+    {
+        var left = InkCanvas.GetLeft(element);
+        var top = InkCanvas.GetTop(element);
+        if (double.IsNaN(left)) left = 0;
+        if (double.IsNaN(top)) top = 0;
+
+        if (element is Line line)
+        {
+            return new Rect(
+                Math.Min(line.X1, line.X2) + left,
+                Math.Min(line.Y1, line.Y2) + top,
+                Math.Max(1, Math.Abs(line.X2 - line.X1)),
+                Math.Max(1, Math.Abs(line.Y2 - line.Y1)));
+        }
+
+        if (element is Path path && path.Tag is ArrowAnnotation arrow)
+        {
+            return new Rect(
+                Math.Min(arrow.Start.X, arrow.End.X),
+                Math.Min(arrow.Start.Y, arrow.End.Y),
+                Math.Max(1, Math.Abs(arrow.End.X - arrow.Start.X)),
+                Math.Max(1, Math.Abs(arrow.End.Y - arrow.Start.Y)));
+        }
+
+        if (element is FrameworkElement fe && !double.IsNaN(fe.Width) && !double.IsNaN(fe.Height)
+            && fe.Width > 0 && fe.Height > 0)
+        {
+            return new Rect(left, top, fe.Width, fe.Height);
+        }
+
+        return GetAnnotationBounds(element);
     }
 
     private bool TryBeginResizeAt(Point position)
@@ -1181,16 +1297,36 @@ public partial class ScreenshotEditorWindow : Window
         if (edge is null)
             return false;
 
-        var bounds = GetAnnotationBounds(_selectedElement);
+        var bounds = GetLayoutBounds(_selectedElement);
         _selectionResizing = true;
         _selectionMoving = false;
         _resizeEdge = edge;
         _selectionDragStart = position;
         _resizeOriginBounds = bounds;
+        _resizeOriginGeometry = CaptureGeometrySnapshot(_selectedElement);
         _beforeAction = RenderAnnotatedImage();
         AnnotationCanvas.CaptureMouse();
         return true;
     }
+
+    private object? CaptureGeometrySnapshot(UIElement element) => element switch
+    {
+        Line line => (line.X1, line.Y1, line.X2, line.Y2,
+            double.IsNaN(InkCanvas.GetLeft(line)) ? 0 : InkCanvas.GetLeft(line),
+            double.IsNaN(InkCanvas.GetTop(line)) ? 0 : InkCanvas.GetTop(line)),
+        Path { Tag: ArrowAnnotation arrow } => new ArrowAnnotation { Start = arrow.Start, End = arrow.End },
+        Path path => new ArrowAnnotation
+        {
+            Start = new Point(GetLayoutBounds(path).Left, GetLayoutBounds(path).Bottom),
+            End = new Point(GetLayoutBounds(path).Right, GetLayoutBounds(path).Top)
+        },
+        TextBlock text => text.FontSize,
+        Border border => (border.Width, border.Height),
+        FrameworkElement fe => (fe.Width, fe.Height,
+            double.IsNaN(InkCanvas.GetLeft(fe)) ? 0 : InkCanvas.GetLeft(fe),
+            double.IsNaN(InkCanvas.GetTop(fe)) ? 0 : InkCanvas.GetTop(fe)),
+        _ => null
+    };
 
     private string? HitTestResizeHandle(Point position)
     {
@@ -1357,34 +1493,75 @@ public partial class ScreenshotEditorWindow : Window
         var changed = false;
         if (_selectedElement is not null)
         {
-            var bounds = GetAnnotationBounds(_selectedElement);
+            var bounds = GetLayoutBounds(_selectedElement);
             changed = Math.Abs(bounds.Left - _resizeOriginBounds.Left) > 0.5
                       || Math.Abs(bounds.Top - _resizeOriginBounds.Top) > 0.5
                       || Math.Abs(bounds.Width - _resizeOriginBounds.Width) > 0.5
                       || Math.Abs(bounds.Height - _resizeOriginBounds.Height) > 0.5;
+            if (_selectedElement is Rectangle effect && IsEffectAnnotation(effect))
+                RefreshEffectPreview(effect);
         }
 
         if (changed && _beforeAction is not null)
             SaveUndoPointFrom(_beforeAction);
 
         _resizeEdge = null;
+        _resizeOriginGeometry = null;
         _beforeAction = null;
     }
 
-    private static void ApplyBoundsToElement(UIElement element, Rect bounds)
+    private void ApplyBoundsToElement(UIElement element, Rect bounds)
     {
-        if (element is not FrameworkElement fe)
+        var old = _resizeOriginBounds;
+        if (old.Width < 0.001 || old.Height < 0.001)
             return;
 
-        PlaceElement(fe, bounds.Left, bounds.Top);
-        fe.Width = Math.Max(1, bounds.Width);
-        fe.Height = Math.Max(1, bounds.Height);
+        double MapX(double x) => bounds.Left + (x - old.Left) / old.Width * bounds.Width;
+        double MapY(double y) => bounds.Top + (y - old.Top) / old.Height * bounds.Height;
+
+        switch (element)
+        {
+            case Line line when _resizeOriginGeometry is (double x1, double y1, double x2, double y2, double left, double top):
+                line.X1 = MapX(x1 + left);
+                line.Y1 = MapY(y1 + top);
+                line.X2 = MapX(x2 + left);
+                line.Y2 = MapY(y2 + top);
+                PlaceElement(line, 0, 0);
+                break;
+
+            case Path path when _resizeOriginGeometry is ArrowAnnotation originArrow:
+                var start = new Point(MapX(originArrow.Start.X), MapY(originArrow.Start.Y));
+                var end = new Point(MapX(originArrow.End.X), MapY(originArrow.End.Y));
+                path.Tag = new ArrowAnnotation { Start = start, End = end };
+                path.Data = BuildArrowGeometry(start, end);
+                PlaceElement(path, 0, 0);
+                break;
+
+            case TextBlock text when _resizeOriginGeometry is double fontSize:
+                PlaceElement(text, bounds.Left, bounds.Top);
+                text.FontSize = Math.Max(8, fontSize * bounds.Height / old.Height);
+                break;
+
+            case Border border:
+                PlaceElement(border, bounds.Left, bounds.Top);
+                border.Width = Math.Max(12, bounds.Width);
+                border.Height = Math.Max(12, bounds.Height);
+                break;
+
+            case FrameworkElement fe:
+                PlaceElement(fe, bounds.Left, bounds.Top);
+                fe.Width = Math.Max(1, bounds.Width);
+                fe.Height = Math.Max(1, bounds.Height);
+                if (fe is Rectangle effect && IsEffectAnnotation(effect))
+                    RefreshEffectPreview(effect);
+                break;
+        }
     }
 
     private Rect? GetSelectionBounds()
     {
         if (_selectedElement is not null)
-            return GetAnnotationBounds(_selectedElement);
+            return GetLayoutBounds(_selectedElement);
 
         if (_selectedStroke is not null)
         {
