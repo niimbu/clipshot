@@ -2,28 +2,41 @@ using Cursors = System.Windows.Input.Cursors;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using Point = System.Windows.Point;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Rectangle = System.Windows.Shapes.Rectangle;
+using Color = System.Windows.Media.Color;
 
 namespace ClipShot;
 
 public partial class RegionSelectionWindow : Window
 {
     private readonly BitmapSource _screenshot;
+    private readonly SolidColorBrush _dimBrush;
     private Point _startPoint;
     private bool _isSelecting;
 
     public BitmapSource? SelectedImage { get; private set; }
 
-    public RegionSelectionWindow(BitmapSource screenshot)
+    public RegionSelectionWindow(BitmapSource screenshot, double dimOpacity = 0.45)
     {
         InitializeComponent();
         _screenshot = screenshot;
         ScreenshotImage.Source = screenshot;
+        var alpha = (byte)Math.Clamp((int)Math.Round(Math.Clamp(dimOpacity, 0.05, 0.9) * 255), 13, 230);
+        _dimBrush = new SolidColorBrush(Color.FromArgb(alpha, 0, 0, 0));
+        _dimBrush.Freeze();
+        DimFull.Fill = _dimBrush;
+        DimTop.Fill = _dimBrush;
+        DimLeft.Fill = _dimBrush;
+        DimRight.Fill = _dimBrush;
+        DimBottom.Fill = _dimBrush;
+        // Keep the backdrop faintly visible instead of solid black.
+        Background = new SolidColorBrush(Color.FromArgb((byte)Math.Min(alpha, (byte)40), 0, 0, 0));
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -88,7 +101,6 @@ public partial class RegionSelectionWindow : Window
         var cropped = new CroppedBitmap(_screenshot, pixels);
         cropped.Freeze();
         SelectedImage = cropped;
-        // Hand the crop to the annotation editor immediately.
         DialogResult = true;
     }
 

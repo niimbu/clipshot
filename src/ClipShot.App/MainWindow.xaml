@@ -28,13 +28,17 @@
 
         <Grid Grid.Row="0">
             <StackPanel Orientation="Horizontal">
-                <Border Width="34" Height="34" CornerRadius="10" Background="{StaticResource PrimaryBrush}" Margin="0,1,12,0">
-                    <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Path Stroke="White"
-                              StrokeThickness="1.8"
-                              StrokeStartLineCap="Round"
-                              StrokeEndLineCap="Round"
-                              Data="M3,8 V3 H8 M14,3 H19 V8 M19,14 V19 H14 M8,19 H3 V14"/>
+                <Border Width="34" Height="34" CornerRadius="10" Margin="0,1,12,0">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                            <GradientStop Color="#54AE6F" Offset="0"/>
+                            <GradientStop Color="#00AA4F" Offset="0.5"/>
+                            <GradientStop Color="#007736" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <Viewbox Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Path Fill="White"
+                              Data="M8,1.2 A6.8,6.8 0 1 1 7.99,1.2 Z M3.2,4.2 H12.8 V10.8 H11.8 V5.2 H4.2 V10.8 H3.2 Z M5.6,8.4 L7.2,6.8 8,7.6 6.4,9.2 Z M10.2,6.6 L7.6,9.2 8.4,10 11,7.4 Z"/>
                     </Viewbox>
                 </Border>
                 <StackPanel VerticalAlignment="Center">
@@ -189,6 +193,36 @@
                               Foreground="{StaticResource InkBrush}"
                               Checked="StartWithWindows_Changed"
                               Unchecked="StartWithWindows_Changed"/>
+                    <DockPanel Margin="0,14,0,0" LastChildFill="True">
+                        <TextBlock DockPanel.Dock="Left"
+                                   Text="Region overlay"
+                                   FontSize="12.5"
+                                   Foreground="{StaticResource InkBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,12,0"/>
+                        <TextBlock x:Name="DimOpacityValueText"
+                                   DockPanel.Dock="Right"
+                                   Text="45%"
+                                   FontSize="12"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="12,0,0,0"
+                                   MinWidth="36"
+                                   TextAlignment="Right"/>
+                        <Slider x:Name="DimOpacitySlider"
+                                Minimum="5"
+                                Maximum="90"
+                                Value="45"
+                                TickFrequency="5"
+                                IsSnapToTickEnabled="True"
+                                VerticalAlignment="Center"
+                                ToolTip="How dark the dimmed area is while selecting a region"
+                                ValueChanged="DimOpacitySlider_ValueChanged"/>
+                    </DockPanel>
+                    <TextBlock Text="Lower is more transparent while you drag a region."
+                               FontSize="11"
+                               Foreground="{StaticResource MutedBrush}"
+                               Margin="0,4,0,0"/>
                 </StackPanel>
             </Grid>
         </Border>

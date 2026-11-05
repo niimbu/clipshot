@@ -9,7 +9,7 @@
         ShowInTaskbar="False"
         Focusable="True"
         Cursor="Cross"
-        Background="Black"
+        Background="#28000000"
         FontFamily="Segoe UI"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"

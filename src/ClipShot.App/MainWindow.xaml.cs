@@ -19,18 +19,23 @@ public partial class MainWindow : Window
 {
     private readonly CaptureService _captureService = new();
     private readonly DispatcherTimer _updateCheckTimer = new() { Interval = TimeSpan.FromHours(6) };
-    private HotkeySettings _hotkeySettings = new();
-    private HotkeySettings _activeHotkeySettings = new();
+    private AppSettings _settings = new();
+    private AppSettings _activeSettings = new();
     private GlobalHotkeyManager? _hotkeyManager;
     private HwndSource? _source;
     private Uri? _latestReleaseUri;
+    private bool _suppressDimSave;
 
     public MainWindow()
     {
         InitializeComponent();
-        _hotkeySettings = HotkeySettings.Load();
-        _activeHotkeySettings = _hotkeySettings.Copy();
+        _settings = AppSettings.Load();
+        _activeSettings = _settings.Copy();
         UpdateHotkeyLabels();
+        _suppressDimSave = true;
+        DimOpacitySlider.Value = Math.Round(_settings.RegionDimOpacity * 100);
+        DimOpacityValueText.Text = $"{(int)DimOpacitySlider.Value}%";
+        _suppressDimSave = false;
         StartWithWindowsCheckBox.IsChecked = StartupManager.IsEnabled();
         SourceInitialized += MainWindow_SourceInitialized;
         Loaded += MainWindow_Loaded;
@@ -164,7 +169,7 @@ public partial class MainWindow : Window
         _source?.AddHook(WindowMessageHook);
         _hotkeyManager = new GlobalHotkeyManager(handle);
 
-        if (!_hotkeyManager.TryRegister(_activeHotkeySettings, out var error))
+        if (!_hotkeyManager.TryRegister(_activeSettings.AsHotkeys(), out var error))
             StatusText.Text = $"Shortcut registration failed: {error}";
         else
             StatusText.Text = error is null ? "Ready" : error;
@@ -292,7 +297,7 @@ public partial class MainWindow : Window
         try
         {
             var screenshot = _captureService.CapturePrimaryScreen();
-            var selector = new RegionSelectionWindow(screenshot);
+            var selector = new RegionSelectionWindow(screenshot, _activeSettings.RegionDimOpacity);
             var selected = selector.ShowDialog();
             if (selected == true && selector.SelectedImage is { } region)
                 OpenScreenshotEditor(region);
@@ -317,8 +322,8 @@ public partial class MainWindow : Window
         if (!CaptureHotkey(e, RegionHotkeyBox, out var key, out var modifiers))
             return;
 
-        _hotkeySettings.RegionKey = key.ToString();
-        _hotkeySettings.RegionModifiers = (int)modifiers;
+        _settings.RegionKey = key.ToString();
+        _settings.RegionModifiers = (int)modifiers;
         CommitHotkeys();
     }
 
@@ -327,8 +332,8 @@ public partial class MainWindow : Window
         if (!CaptureHotkey(e, FullScreenHotkeyBox, out var key, out var modifiers))
             return;
 
-        _hotkeySettings.FullScreenKey = key.ToString();
-        _hotkeySettings.FullScreenModifiers = (int)modifiers;
+        _settings.FullScreenKey = key.ToString();
+        _settings.FullScreenModifiers = (int)modifiers;
         CommitHotkeys();
     }
 
@@ -387,8 +392,8 @@ public partial class MainWindow : Window
 
     private void UpdateHotkeyLabels()
     {
-        var region = FormatHotkey(Enum.Parse<Key>(_hotkeySettings.RegionKey), (ModifierKeys)_hotkeySettings.RegionModifiers);
-        var screen = FormatHotkey(Enum.Parse<Key>(_hotkeySettings.FullScreenKey), (ModifierKeys)_hotkeySettings.FullScreenModifiers);
+        var region = FormatHotkey(Enum.Parse<Key>(_settings.RegionKey), (ModifierKeys)_settings.RegionModifiers);
+        var screen = FormatHotkey(Enum.Parse<Key>(_settings.FullScreenKey), (ModifierKeys)_settings.FullScreenModifiers);
         if (RegionHotkeyBox is not null)
             RegionHotkeyBox.Text = region;
         if (FullScreenHotkeyBox is not null)
@@ -397,6 +402,29 @@ public partial class MainWindow : Window
             RegionHotkeyHint.Text = region;
         if (ScreenHotkeyHint is not null)
             ScreenHotkeyHint.Text = screen;
+    }
+
+    private void DimOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!IsLoaded || DimOpacityValueText is null)
+            return;
+
+        DimOpacityValueText.Text = $"{(int)e.NewValue}%";
+        if (_suppressDimSave)
+            return;
+
+        _settings.RegionDimOpacity = e.NewValue / 100d;
+        _activeSettings.RegionDimOpacity = _settings.RegionDimOpacity;
+        try
+        {
+            _settings.Save();
+            StatusText.Text = $"Region overlay set to {(int)e.NewValue}%";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Couldn't save overlay setting";
+            MessageBox.Show(ex.Message, "Settings error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void HotkeyBox_GotFocus(object sender, RoutedEventArgs e)
@@ -417,20 +445,20 @@ public partial class MainWindow : Window
 
     private void CommitHotkeys()
     {
-        var candidate = _hotkeySettings.Copy();
+        var candidate = _settings.Copy();
         if (_hotkeyManager is null)
         {
             StatusText.Text = "Shortcut unavailable: window is not ready";
-            _hotkeySettings = _activeHotkeySettings.Copy();
+            _settings = _activeSettings.Copy();
             UpdateHotkeyLabels();
             return;
         }
 
-        if (!_hotkeyManager.TryRegister(candidate, out var error))
+        if (!_hotkeyManager.TryRegister(candidate.AsHotkeys(), out var error))
         {
             StatusText.Text = $"Shortcut unavailable: {error ?? "registration failed"}";
-            _hotkeyManager.TryRegister(_activeHotkeySettings, out _);
-            _hotkeySettings = _activeHotkeySettings.Copy();
+            _hotkeyManager.TryRegister(_activeSettings.AsHotkeys(), out _);
+            _settings = _activeSettings.Copy();
             UpdateHotkeyLabels();
             return;
         }
@@ -438,14 +466,14 @@ public partial class MainWindow : Window
         try
         {
             candidate.Save();
-            _hotkeySettings = candidate;
-            _activeHotkeySettings = candidate.Copy();
+            _settings = candidate;
+            _activeSettings = candidate.Copy();
             StatusText.Text = error is null ? "Shortcut saved" : $"Shortcut saved  ·  {error}";
         }
         catch (Exception ex)
         {
-            _hotkeyManager.TryRegister(_activeHotkeySettings, out _);
-            _hotkeySettings = _activeHotkeySettings.Copy();
+            _hotkeyManager.TryRegister(_activeSettings.AsHotkeys(), out _);
+            _settings = _activeSettings.Copy();
             UpdateHotkeyLabels();
             StatusText.Text = "Couldn't save shortcuts";
             MessageBox.Show(ex.Message, "Shortcut settings error",
@@ -455,7 +483,8 @@ public partial class MainWindow : Window
 
     private void ResetHotkeys_Click(object sender, RoutedEventArgs e)
     {
-        _hotkeySettings = new HotkeySettings();
+        var dim = _settings.RegionDimOpacity;
+        _settings = new AppSettings { RegionDimOpacity = dim };
         UpdateHotkeyLabels();
         CommitHotkeys();
     }
