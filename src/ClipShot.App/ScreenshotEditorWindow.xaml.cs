@@ -24,6 +24,7 @@ using Cursors = System.Windows.Input.Cursors;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using DragDeltaEventArgs = System.Windows.Controls.Primitives.DragDeltaEventArgs;
 using ColorConverter = System.Windows.Media.ColorConverter;
+using Pen = System.Windows.Media.Pen;
 
 namespace ClipShot;
 
@@ -138,14 +139,12 @@ public partial class ScreenshotEditorWindow : Window
         // Use None for Select — InkCanvas's built-in Select mode fights our Preview mouse
         // handlers and fails on Line/Path children with zero layout size. Custom hit-test
         // selection below handles both shapes and ink strokes.
+        // Erase uses custom hit-testing (shapes + ink). Built-in EraseByPoint only removes strokes.
         AnnotationCanvas.EditingMode = tool switch
         {
             EditorTool.Pen or EditorTool.Highlight => InkCanvasEditingMode.Ink,
-            EditorTool.Erase => InkCanvasEditingMode.EraseByPoint,
             _ => InkCanvasEditingMode.None
         };
-        if (tool == EditorTool.Erase)
-            AnnotationCanvas.EraserShape = new EllipseStylusShape(22, 22);
 
         AnnotationCanvas.Cursor = tool switch
         {
@@ -518,9 +517,9 @@ public partial class ScreenshotEditorWindow : Window
             _beforeAction = RenderAnnotatedImage();
             _drawing = true;
             _eraseChanged = false;
-            EraseElementsAt(position);
-            // Do not capture the mouse — EraseByPoint needs the normal ink routing for strokes.
-            e.Handled = false;
+            EraseAt(position);
+            AnnotationCanvas.CaptureMouse();
+            e.Handled = true;
             return;
         }
 
@@ -612,8 +611,8 @@ public partial class ScreenshotEditorWindow : Window
 
         if (_tool == EditorTool.Erase)
         {
-            EraseElementsAt(position);
-            e.Handled = false;
+            EraseAt(position);
+            e.Handled = true;
         }
         else if (_previewShape is not null)
         {
@@ -674,10 +673,11 @@ public partial class ScreenshotEditorWindow : Window
         if (_tool == EditorTool.Erase)
         {
             _drawing = false;
+            AnnotationCanvas.ReleaseMouseCapture();
             if (_beforeAction is not null && _eraseChanged)
                 SaveUndoPointFrom(_beforeAction);
             _eraseChanged = false;
-            e.Handled = false;
+            e.Handled = true;
             return;
         }
 
@@ -878,13 +878,17 @@ public partial class ScreenshotEditorWindow : Window
         return geometry;
     }
 
-    private void EraseElementsAt(Point point)
+    private void EraseAt(Point point)
     {
-        const double radius = 18;
+        const double radius = 20;
+        EraseElementsAt(point, radius);
+        EraseStrokesAt(point, radius);
+    }
+
+    private void EraseElementsAt(Point point, double radius)
+    {
         var hitElements = AnnotationCanvas.Children.Cast<UIElement>()
-            .Where(element => element is not Border host || host != _inlineTextHost)
-            .Where(element => element != _selectionChrome)
-            .Where(element => element is Shape or TextBlock or Border)
+            .Where(IsMovableAnnotation)
             .Where(element => HitTestAnnotation(element, point, radius))
             .ToArray();
 
@@ -893,6 +897,21 @@ public partial class ScreenshotEditorWindow : Window
             if (element == _selectedElement)
                 ClearAnnotationSelection();
             AnnotationCanvas.Children.Remove(element);
+            _eraseChanged = true;
+        }
+    }
+
+    private void EraseStrokesAt(Point point, double radius)
+    {
+        var hits = AnnotationCanvas.Strokes.HitTest(point, radius);
+        if (hits.Count == 0)
+            return;
+
+        foreach (var stroke in hits.ToArray())
+        {
+            if (ReferenceEquals(stroke, _selectedStroke))
+                ClearAnnotationSelection();
+            AnnotationCanvas.Strokes.Remove(stroke);
             _eraseChanged = true;
         }
     }
@@ -907,7 +926,7 @@ public partial class ScreenshotEditorWindow : Window
             return;
         }
 
-        var strokes = AnnotationCanvas.Strokes.HitTest(position, 10);
+        var strokes = AnnotationCanvas.Strokes.HitTest(position, 14);
         if (strokes.Count > 0)
         {
             // Prefer the top-most (last drawn) stroke under the pointer.
@@ -1043,6 +1062,7 @@ public partial class ScreenshotEditorWindow : Window
         {
             _selectionChrome = new Rectangle
             {
+                Tag = "SelectionChrome",
                 Stroke = Brushes.White,
                 StrokeThickness = 1.25,
                 StrokeDashArray = new DoubleCollection { 4, 2 },
@@ -1077,13 +1097,19 @@ public partial class ScreenshotEditorWindow : Window
         return null;
     }
 
+    private bool IsMovableAnnotation(UIElement element) =>
+        element != _selectionChrome
+        && element != _inlineTextHost
+        && element != _previewShape
+        && element is Shape or TextBlock or Border;
+
     private UIElement? HitTestTopAnnotation(Point point)
     {
-        const double radius = 6;
+        const double radius = 12;
         return AnnotationCanvas.Children.Cast<UIElement>()
-            .Where(element => element is not Border host || host != _inlineTextHost)
+            .Where(element => element != _inlineTextHost)
             .Where(element => element != _selectionChrome)
-            .Where(element => element is Shape or TextBlock or Border)
+            .Where(IsMovableAnnotation)
             .Reverse()
             .FirstOrDefault(element => HitTestAnnotation(element, point, radius));
     }
@@ -1103,15 +1129,34 @@ public partial class ScreenshotEditorWindow : Window
                 Math.Min(line.Y1, line.Y2),
                 Math.Max(1, Math.Abs(line.X2 - line.X1)),
                 Math.Max(1, Math.Abs(line.Y2 - line.Y1)));
+            // Thin axis-aligned lines need a minimum hit/chrome thickness.
+            if (local.Height < 8) local.Inflate(0, (8 - local.Height) / 2);
+            if (local.Width < 8) local.Inflate((8 - local.Width) / 2, 0);
+        }
+        else if (element is Path path && path.Data is not null)
+        {
+            local = path.Data.Bounds;
+            if (local.IsEmpty)
+                local = path.RenderedGeometry.Bounds;
+            if (local.IsEmpty)
+                local = new Rect(0, 0, 8, 8);
+            if (local.Height < 8) local.Inflate(0, (8 - local.Height) / 2);
+            if (local.Width < 8) local.Inflate((8 - local.Width) / 2, 0);
         }
         else if (element is Shape shape)
         {
             var geometryBounds = shape.RenderedGeometry.Bounds;
-            if (geometryBounds.IsEmpty)
-                local = new Rect(0, 0, Math.Max(1, shape.ActualWidth > 0 ? shape.ActualWidth : shape.Width),
-                    Math.Max(1, shape.ActualHeight > 0 ? shape.ActualHeight : shape.Height));
+            if (geometryBounds.IsEmpty || double.IsNaN(geometryBounds.Width))
+            {
+                var width = shape.ActualWidth > 0 ? shape.ActualWidth : shape.Width;
+                var height = shape.ActualHeight > 0 ? shape.ActualHeight : shape.Height;
+                local = new Rect(0, 0, Math.Max(1, double.IsNaN(width) ? 8 : width),
+                    Math.Max(1, double.IsNaN(height) ? 8 : height));
+            }
             else
+            {
                 local = geometryBounds;
+            }
         }
         else
         {
@@ -1131,37 +1176,38 @@ public partial class ScreenshotEditorWindow : Window
         var top = InkCanvas.GetTop(element);
         if (double.IsNaN(left)) left = 0;
         if (double.IsNaN(top)) top = 0;
+        var localPoint = new Point(point.X - left, point.Y - top);
 
-        Rect bounds;
         if (element is Line line)
+            return DistanceToSegment(localPoint, new Point(line.X1, line.Y1), new Point(line.X2, line.Y2)) <= radius;
+
+        if (element is Path path && path.Data is not null)
         {
-            bounds = new Rect(
-                Math.Min(line.X1, line.X2),
-                Math.Min(line.Y1, line.Y2),
-                Math.Max(1, Math.Abs(line.X2 - line.X1)),
-                Math.Max(1, Math.Abs(line.Y2 - line.Y1)));
-        }
-        else if (element is Shape shape)
-        {
-            var geometryBounds = shape.RenderedGeometry.Bounds;
-            if (geometryBounds.IsEmpty)
-                bounds = new Rect(0, 0, Math.Max(1, shape.Width), Math.Max(1, shape.Height));
-            else
-                bounds = geometryBounds;
-        }
-        else
-        {
-            element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            var size = element.DesiredSize;
-            if (size.Width < 1 || size.Height < 1)
-                size = element.RenderSize;
-            bounds = new Rect(0, 0, Math.Max(size.Width, 8), Math.Max(size.Height, 8));
+            var strokeWidth = Math.Max(path.StrokeThickness, 1) + radius * 2;
+            var pen = new Pen(Brushes.Transparent, strokeWidth);
+            if (path.Data.StrokeContains(pen, localPoint, 0.25, ToleranceType.Absolute))
+                return true;
+            if (path.Data.FillContains(localPoint, 0.25, ToleranceType.Absolute))
+                return true;
         }
 
-        var hitBounds = new Rect(left + bounds.Left, top + bounds.Top,
-            Math.Max(bounds.Width, 1), Math.Max(bounds.Height, 1));
-        hitBounds.Inflate(radius, radius);
-        return hitBounds.Contains(point);
+        var bounds = GetAnnotationBounds(element);
+        bounds.Inflate(radius, radius);
+        return bounds.Contains(point);
+    }
+
+    private static double DistanceToSegment(Point point, Point a, Point b)
+    {
+        var dx = b.X - a.X;
+        var dy = b.Y - a.Y;
+        if (Math.Abs(dx) < 0.0001 && Math.Abs(dy) < 0.0001)
+            return Math.Sqrt((point.X - a.X) * (point.X - a.X) + (point.Y - a.Y) * (point.Y - a.Y));
+
+        var t = ((point.X - a.X) * dx + (point.Y - a.Y) * dy) / (dx * dx + dy * dy);
+        t = Math.Clamp(t, 0, 1);
+        var projX = a.X + t * dx;
+        var projY = a.Y + t * dy;
+        return Math.Sqrt((point.X - projX) * (point.X - projX) + (point.Y - projY) * (point.Y - projY));
     }
 
     private void BeginInlineText(Point position)
@@ -1270,6 +1316,10 @@ public partial class ScreenshotEditorWindow : Window
 
     private void ApplyMosaic(Rect selection, int block)
     {
+        // Flatten live annotations into the bitmap first. ApplySnapshot clears Children/Strokes,
+        // which previously made the first blur/pixelate appear to delete drawn tools.
+        FlattenAnnotationsOntoImage();
+
         var source = PreviewImage.Source as BitmapSource;
         if (source is null)
             return;
@@ -1340,6 +1390,23 @@ public partial class ScreenshotEditorWindow : Window
         rendered.Render(full);
         rendered.Freeze();
         ApplySnapshot(rendered);
+    }
+
+    private void FlattenAnnotationsOntoImage()
+    {
+        var hasAnnotations = AnnotationCanvas.Strokes.Count > 0
+            || AnnotationCanvas.Children.Cast<UIElement>().Any(child => child != _selectionChrome && child != _previewShape);
+        if (!hasAnnotations)
+            return;
+
+        var flattened = RenderAnnotatedImage();
+        PreviewImage.Source = flattened;
+        ClearAnnotationSelection();
+        AnnotationCanvas.Strokes.Clear();
+        AnnotationCanvas.Children.Clear();
+        _previewShape = null;
+        _inlineTextHost = null;
+        _inlineTextBox = null;
     }
 
     private void Copy_Click(object sender, RoutedEventArgs e) => CopyAndClose();
