@@ -12,6 +12,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Input;
 using System.Windows.Threading;
 using ClipShot.Services;
+using Forms = System.Windows.Forms;
 
 namespace ClipShot;
 
@@ -25,6 +26,9 @@ public partial class MainWindow : Window
     private HwndSource? _source;
     private Uri? _latestReleaseUri;
     private bool _suppressDimSave;
+    private Forms.NotifyIcon? _trayIcon;
+    private bool _allowExit;
+    private bool _trayNoticeShown;
 
     public MainWindow()
     {
@@ -37,7 +41,9 @@ public partial class MainWindow : Window
         DimOpacityValueText.Text = $"{(int)DimOpacitySlider.Value}%";
         _suppressDimSave = false;
         StartWithWindowsCheckBox.IsChecked = StartupManager.IsEnabled();
+        InitializeTrayIcon();
         SourceInitialized += MainWindow_SourceInitialized;
+        Closing += MainWindow_Closing;
         Loaded += MainWindow_Loaded;
         _updateCheckTimer.Tick += async (_, _) => await CheckForUpdatesAsync();
         _updateCheckTimer.Start();
@@ -45,7 +51,67 @@ public partial class MainWindow : Window
         {
             _updateCheckTimer.Stop();
             _hotkeyManager?.Dispose();
+            if (_trayIcon is not null)
+            {
+                _trayIcon.Visible = false;
+                _trayIcon.Dispose();
+                _trayIcon = null;
+            }
         };
+    }
+
+    private void InitializeTrayIcon()
+    {
+        var icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? string.Empty)
+                   ?? System.Drawing.SystemIcons.Application;
+        _trayIcon = new Forms.NotifyIcon
+        {
+            Icon = icon,
+            Text = "ClipShot is running",
+            Visible = true
+        };
+
+        var menu = new Forms.ContextMenuStrip();
+        menu.Items.Add("Open ClipShot", null, (_, _) => RestoreFromTray());
+        menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add("Exit", null, (_, _) => ExitApplication());
+        _trayIcon.ContextMenuStrip = menu;
+        _trayIcon.DoubleClick += (_, _) => RestoreFromTray();
+    }
+
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_allowExit)
+            return;
+
+        e.Cancel = true;
+        Hide();
+        StatusText.Text = "ClipShot is running in the system tray";
+        if (!_trayNoticeShown && _trayIcon is not null)
+        {
+            _trayNoticeShown = true;
+            _trayIcon.BalloonTipTitle = "ClipShot is still running";
+            _trayIcon.BalloonTipText = "ClipShot is in the system tray. Your screenshot shortcuts are still active. Right-click its icon to exit.";
+            _trayIcon.BalloonTipIcon = Forms.ToolTipIcon.Info;
+            _trayIcon.ShowBalloonTip(4500);
+        }
+    }
+
+    private void RestoreFromTray()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    private void ExitApplication()
+    {
+        _allowExit = true;
+        if (_trayIcon is not null)
+            _trayIcon.Visible = false;
+        Close();
+        System.Windows.Application.Current.Shutdown();
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e) => await CheckForUpdatesAsync();
