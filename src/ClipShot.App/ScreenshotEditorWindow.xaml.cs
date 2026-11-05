@@ -54,7 +54,7 @@ public partial class ScreenshotEditorWindow : Window
     private Color _annotationColor = Color.FromRgb(0xE1, 0x1D, 0x48);
     private bool _inkStraightMode;
     private readonly bool _inPlaceMode;
-    private readonly BitmapSource? _fullScreenshot;
+    private BitmapSource? _fullScreenshot;
     private Rect _regionBounds;
     private double _dimOpacity = 0.45;
 
@@ -416,8 +416,11 @@ public partial class ScreenshotEditorWindow : Window
         AnnotationCanvas.Children.Clear();
         if (_inPlaceMode)
         {
+            // Keep the edited region pixels — do not re-crop from the original capture
+            // (that was wiping blur/pixelate and other baked effects).
             _regionBounds = new Rect(_regionBounds.Left, _regionBounds.Top, displayWidth, displayHeight);
-            UpdateInPlaceLayout();
+            BakeRegionIntoFullScreenshot(snapshot);
+            UpdateInPlaceLayout(refreshCrop: false);
         }
     }
 
@@ -693,8 +696,19 @@ public partial class ScreenshotEditorWindow : Window
         e.Handled = true;
 
         var rect = MakeRect(_start, end);
-        if (rect.Width < 3 || rect.Height < 3)
+        // Lines/arrows can be axis-aligned (width or height ~0 with Shift). Require length, not both dims.
+        if (_tool is EditorTool.Line or EditorTool.Arrow)
+        {
+            var length = Math.Sqrt(
+                (end.X - _start.X) * (end.X - _start.X) +
+                (end.Y - _start.Y) * (end.Y - _start.Y));
+            if (length < 3)
+                return;
+        }
+        else if (rect.Width < 3 || rect.Height < 3)
+        {
             return;
+        }
 
         if (_tool is EditorTool.Blur or EditorTool.Pixelate)
         {
@@ -1377,7 +1391,7 @@ public partial class ScreenshotEditorWindow : Window
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
-    private void UpdateInPlaceLayout()
+    private void UpdateInPlaceLayout(bool refreshCrop = true)
     {
         if (!_inPlaceMode || _fullScreenshot is null)
             return;
@@ -1398,10 +1412,55 @@ public partial class ScreenshotEditorWindow : Window
         AnnotationCanvas.Width = _regionBounds.Width;
         AnnotationCanvas.Height = _regionBounds.Height;
 
-        RefreshRegionCrop();
+        if (refreshCrop)
+            RefreshRegionCrop();
+        else
+            UpdateInPlaceSizeBadgeText();
+
         RefreshInPlaceDim(hostWidth, hostHeight);
         PositionResizeHandles();
         PositionInPlaceSizeBadge();
+    }
+
+    private void BakeRegionIntoFullScreenshot(BitmapSource regionImage)
+    {
+        if (_fullScreenshot is null)
+            return;
+
+        var hostWidth = Math.Max(ActualWidth > 1 ? ActualWidth : SystemParameters.PrimaryScreenWidth, 1);
+        var hostHeight = Math.Max(ActualHeight > 1 ? ActualHeight : SystemParameters.PrimaryScreenHeight, 1);
+        var pixels = ToPixelRect(_regionBounds, _fullScreenshot, hostWidth, hostHeight);
+        if (pixels.Width < 1 || pixels.Height < 1)
+            return;
+
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawImage(_fullScreenshot, new Rect(0, 0, _fullScreenshot.PixelWidth, _fullScreenshot.PixelHeight));
+            dc.DrawImage(regionImage, new Rect(pixels.X, pixels.Y, pixels.Width, pixels.Height));
+        }
+
+        var baked = new RenderTargetBitmap(
+            _fullScreenshot.PixelWidth,
+            _fullScreenshot.PixelHeight,
+            _fullScreenshot.DpiX,
+            _fullScreenshot.DpiY,
+            PixelFormats.Pbgra32);
+        baked.Render(visual);
+        baked.Freeze();
+        _fullScreenshot = baked;
+        FullScreenImage.Source = _fullScreenshot;
+    }
+
+    private void UpdateInPlaceSizeBadgeText()
+    {
+        if (_fullScreenshot is null)
+            return;
+
+        var hostWidth = Math.Max(ActualWidth > 1 ? ActualWidth : SystemParameters.PrimaryScreenWidth, 1);
+        var hostHeight = Math.Max(ActualHeight > 1 ? ActualHeight : SystemParameters.PrimaryScreenHeight, 1);
+        var pixels = ToPixelRect(_regionBounds, _fullScreenshot, hostWidth, hostHeight);
+        InPlaceSizeText.Text = $"{pixels.Width} × {pixels.Height}";
     }
 
     private void RefreshRegionCrop()
