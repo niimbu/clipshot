@@ -33,6 +33,15 @@ public partial class MainWindow : Window
     private DateTime _lastUpdateCheckUtc = DateTime.MinValue;
     private Version? _notifiedUpdateVersion;
     private bool _updateCheckInFlight;
+    private TrayBalloonKind _activeBalloon = TrayBalloonKind.None;
+    private Forms.ToolStripMenuItem? _trayUpdateMenuItem;
+
+    private enum TrayBalloonKind
+    {
+        None,
+        StillRunning,
+        UpdateAvailable
+    }
 
     public MainWindow()
     {
@@ -92,11 +101,54 @@ public partial class MainWindow : Window
         };
 
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("Open ClipShot", null, (_, _) => RestoreFromTray());
+        _trayUpdateMenuItem = new Forms.ToolStripMenuItem("Install update")
+        {
+            Visible = false
+        };
+        _trayUpdateMenuItem.Click += (_, _) => Dispatcher.BeginInvoke(StartUpdateFromTray);
+        menu.Items.Add(_trayUpdateMenuItem);
+        menu.Items.Add("Open ClipShot", null, (_, _) => Dispatcher.BeginInvoke(RestoreFromTray));
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) => ExitApplication());
+        menu.Items.Add("Exit", null, (_, _) => Dispatcher.BeginInvoke(ExitApplication));
         _trayIcon.ContextMenuStrip = menu;
-        _trayIcon.DoubleClick += (_, _) => RestoreFromTray();
+        _trayIcon.DoubleClick += (_, _) => Dispatcher.BeginInvoke(RestoreFromTray);
+        _trayIcon.BalloonTipClicked += (_, _) => Dispatcher.BeginInvoke(OnTrayBalloonTipClicked);
+    }
+
+    private void OnTrayBalloonTipClicked()
+    {
+        var kind = _activeBalloon;
+        _activeBalloon = TrayBalloonKind.None;
+
+        if (kind == TrayBalloonKind.UpdateAvailable)
+        {
+            StartUpdateFromTray();
+            return;
+        }
+
+        if (kind == TrayBalloonKind.StillRunning)
+            RestoreFromTray();
+    }
+
+    private void StartUpdateFromTray()
+    {
+        RestoreFromTray();
+        if (_latestReleaseUri is null)
+            return;
+
+        UpdateNow_Click(this, new RoutedEventArgs());
+    }
+
+    private void SetTrayUpdateMenuVisible(bool visible, Version? version = null)
+    {
+        if (_trayUpdateMenuItem is null)
+            return;
+
+        _trayUpdateMenuItem.Visible = visible;
+        if (visible && version is not null)
+            _trayUpdateMenuItem.Text = $"Install update · {FormatVersion(version)}";
+        else
+            _trayUpdateMenuItem.Text = "Install update";
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -111,8 +163,9 @@ public partial class MainWindow : Window
         if (!_trayNoticeShown && _trayIcon is not null)
         {
             _trayNoticeShown = true;
+            _activeBalloon = TrayBalloonKind.StillRunning;
             _trayIcon.BalloonTipTitle = "ClipShot is still running";
-            _trayIcon.BalloonTipText = "ClipShot is in the system tray. Your screenshot shortcuts are still active. Right-click its icon to exit.";
+            _trayIcon.BalloonTipText = "ClipShot is in the system tray. Your screenshot shortcuts are still active. Click to open, or right-click to exit.";
             _trayIcon.BalloonTipIcon = Forms.ToolTipIcon.Info;
             _trayIcon.ShowBalloonTip(4500);
         }
@@ -179,6 +232,7 @@ public partial class MainWindow : Window
             {
                 _latestReleaseUri = null;
                 UpdateNoticePanel.Visibility = Visibility.Collapsed;
+                SetTrayUpdateMenuVisible(false);
                 if (manual)
                     StatusText.Text = "Couldn't find a published ClipShot release to check.";
                 return;
@@ -196,6 +250,7 @@ public partial class MainWindow : Window
                 if (manual)
                     StatusText.Text = $"Update found: ClipShot {FormatVersion(release.Version)} is available.";
 
+                SetTrayUpdateMenuVisible(true, release.Version);
                 if (!alreadyShowing)
                     NotifyUpdateAvailable(release.Version);
             }
@@ -204,6 +259,7 @@ public partial class MainWindow : Window
                 _latestReleaseUri = release.Url;
                 _notifiedUpdateVersion = null;
                 UpdateNoticePanel.Visibility = Visibility.Collapsed;
+                SetTrayUpdateMenuVisible(false);
                 if (manual)
                     StatusText.Text = $"You're up to date · ClipShot {FormatVersion(currentVersion)} (latest {FormatVersion(release.Version)}).";
             }
@@ -234,12 +290,11 @@ public partial class MainWindow : Window
         if (_trayIcon is null)
             return;
 
+        _activeBalloon = TrayBalloonKind.UpdateAvailable;
         _trayIcon.BalloonTipTitle = $"ClipShot {FormatVersion(version)} is available";
-        _trayIcon.BalloonTipText = IsVisible
-            ? "Open ClipShot to update now."
-            : "A new version is ready. Open ClipShot from the tray to update.";
+        _trayIcon.BalloonTipText = "Click to install the update now.";
         _trayIcon.BalloonTipIcon = Forms.ToolTipIcon.Info;
-        _trayIcon.ShowBalloonTip(6000);
+        _trayIcon.ShowBalloonTip(8000);
     }
 
     private async void UpdateNow_Click(object sender, RoutedEventArgs e)
