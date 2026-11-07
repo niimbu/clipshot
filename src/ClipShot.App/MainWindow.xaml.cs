@@ -25,7 +25,7 @@ public partial class MainWindow : Window
     private AppSettings _activeSettings = new();
     private GlobalHotkeyManager? _hotkeyManager;
     private HwndSource? _source;
-    private Uri? _latestReleaseUri;
+    private LatestRelease? _latestRelease;
     private bool _suppressDimSave;
     private Forms.NotifyIcon? _trayIcon;
     private bool _allowExit;
@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     private DateTime _lastUpdateCheckUtc = DateTime.MinValue;
     private Version? _notifiedUpdateVersion;
     private bool _updateCheckInFlight;
+    private bool _updateDialogOpen;
     private TrayBalloonKind _activeBalloon = TrayBalloonKind.None;
     private Forms.ToolStripMenuItem? _trayUpdateMenuItem;
 
@@ -101,11 +102,11 @@ public partial class MainWindow : Window
         };
 
         var menu = new Forms.ContextMenuStrip();
-        _trayUpdateMenuItem = new Forms.ToolStripMenuItem("Install update")
+        _trayUpdateMenuItem = new Forms.ToolStripMenuItem("View update")
         {
             Visible = false
         };
-        _trayUpdateMenuItem.Click += (_, _) => Dispatcher.BeginInvoke(StartUpdateFromTray);
+        _trayUpdateMenuItem.Click += (_, _) => Dispatcher.BeginInvoke(ShowUpdateDialogFromTray);
         menu.Items.Add(_trayUpdateMenuItem);
         menu.Items.Add("Open ClipShot", null, (_, _) => Dispatcher.BeginInvoke(RestoreFromTray));
         menu.Items.Add(new Forms.ToolStripSeparator());
@@ -122,7 +123,7 @@ public partial class MainWindow : Window
 
         if (kind == TrayBalloonKind.UpdateAvailable)
         {
-            StartUpdateFromTray();
+            ShowUpdateDialogFromTray();
             return;
         }
 
@@ -130,13 +131,10 @@ public partial class MainWindow : Window
             RestoreFromTray();
     }
 
-    private void StartUpdateFromTray()
+    private void ShowUpdateDialogFromTray()
     {
         RestoreFromTray();
-        if (_latestReleaseUri is null)
-            return;
-
-        UpdateNow_Click(this, new RoutedEventArgs());
+        ShowUpdateDialog();
     }
 
     private void SetTrayUpdateMenuVisible(bool visible, Version? version = null)
@@ -146,9 +144,9 @@ public partial class MainWindow : Window
 
         _trayUpdateMenuItem.Visible = visible;
         if (visible && version is not null)
-            _trayUpdateMenuItem.Text = $"Install update · {FormatVersion(version)}";
+            _trayUpdateMenuItem.Text = $"View update · {FormatVersion(version)}";
         else
-            _trayUpdateMenuItem.Text = "Install update";
+            _trayUpdateMenuItem.Text = "View update";
     }
 
     private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -230,7 +228,7 @@ public partial class MainWindow : Window
             _lastUpdateCheckUtc = DateTime.UtcNow;
             if (release is null)
             {
-                _latestReleaseUri = null;
+                _latestRelease = null;
                 UpdateNoticePanel.Visibility = Visibility.Collapsed;
                 SetTrayUpdateMenuVisible(false);
                 if (manual)
@@ -243,9 +241,9 @@ public partial class MainWindow : Window
             {
                 var alreadyShowing = UpdateNoticePanel.Visibility == Visibility.Visible &&
                                      _notifiedUpdateVersion == release.Version;
-                _latestReleaseUri = release.Url;
+                _latestRelease = release;
                 UpdateNoticeTitle.Text = $"ClipShot {FormatVersion(release.Version)} is available";
-                UpdateNoticeDetails.Text = $"You're using version {FormatVersion(currentVersion)}. Update now to install the latest version.";
+                UpdateNoticeDetails.Text = $"You're using version {FormatVersion(currentVersion)}. See what's new, then update when you're ready.";
                 UpdateNoticePanel.Visibility = Visibility.Visible;
                 if (manual)
                     StatusText.Text = $"Update found: ClipShot {FormatVersion(release.Version)} is available.";
@@ -256,7 +254,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                _latestReleaseUri = release.Url;
+                _latestRelease = null;
                 _notifiedUpdateVersion = null;
                 UpdateNoticePanel.Visibility = Visibility.Collapsed;
                 SetTrayUpdateMenuVisible(false);
@@ -292,36 +290,35 @@ public partial class MainWindow : Window
 
         _activeBalloon = TrayBalloonKind.UpdateAvailable;
         _trayIcon.BalloonTipTitle = $"ClipShot {FormatVersion(version)} is available";
-        _trayIcon.BalloonTipText = "Click to install the update now.";
+        _trayIcon.BalloonTipText = "Click to see what's new and update.";
         _trayIcon.BalloonTipIcon = Forms.ToolTipIcon.Info;
         _trayIcon.ShowBalloonTip(8000);
     }
 
-    private async void UpdateNow_Click(object sender, RoutedEventArgs e)
+    private void UpdateNow_Click(object sender, RoutedEventArgs e) => ShowUpdateDialog();
+
+    private void ShowUpdateDialog()
     {
-        if (_latestReleaseUri is null)
+        if (_latestRelease is null || _updateDialogOpen)
             return;
 
-        UpdateNowButton.IsEnabled = false;
-        UpdateNowButton.Content = "Downloading…";
-        UpdateNoticeDetails.Text = "Downloading and preparing the update. ClipShot will restart when it is ready.";
+        var currentVersion = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0);
+        var owned = IsVisible;
+        var dialog = new UpdateAvailableWindow(_latestRelease, currentVersion)
+        {
+            Owner = owned ? this : null,
+            ShowInTaskbar = !owned,
+            WindowStartupLocation = owned ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen
+        };
+
+        _updateDialogOpen = true;
         try
         {
-            var release = await UpdateChecker.GetLatestReleaseAsync();
-            if (release is null)
-                throw new InvalidOperationException("The latest release executable could not be found.");
-
-            await UpdateInstaller.DownloadAndRestartAsync(release.ExecutableUrl);
-            System.Windows.Application.Current.Shutdown();
+            dialog.ShowDialog();
         }
-        catch (Exception ex)
+        finally
         {
-            UpdateNowButton.IsEnabled = true;
-            UpdateNowButton.Content = "Update now";
-            UpdateNoticeDetails.Text = "The update could not be installed. You can download it from the release page.";
-            MessageBox.Show("ClipShot could not install the update.\n\n" + ex.Message, "Update failed",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            Process.Start(new ProcessStartInfo(_latestReleaseUri.AbsoluteUri) { UseShellExecute = true });
+            _updateDialogOpen = false;
         }
     }
 
