@@ -188,7 +188,7 @@
                 </Grid>
                 <StackPanel Grid.Row="2" Margin="0,16,0,0">
                     <CheckBox x:Name="StartWithWindowsCheckBox"
-                              Content="Start ClipShot when I sign in to Windows"
+                              Content="Start ClipShot in the tray when I sign in to Windows"
                               FontSize="12.5"
                               Foreground="{StaticResource InkBrush}"
                               Checked="StartWithWindows_Changed"

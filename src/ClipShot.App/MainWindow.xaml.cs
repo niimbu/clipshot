@@ -45,7 +45,12 @@ public partial class MainWindow : Window
         DimOpacityValueText.Text = $"{(int)DimOpacitySlider.Value}%";
         _suppressDimSave = false;
         StartWithWindowsCheckBox.IsChecked = StartupManager.IsEnabled();
+        // Upgrade legacy Run-key entries so login launches with --autostart (tray only).
+        try { StartupManager.EnsureCurrentCommand(); }
+        catch { /* keep going if the registry is temporarily unavailable */ }
         InitializeTrayIcon();
+        if (App.StartMinimizedToTray)
+            PrepareQuietTrayStart();
         SourceInitialized += MainWindow_SourceInitialized;
         Closing += MainWindow_Closing;
         Loaded += MainWindow_Loaded;
@@ -62,6 +67,17 @@ public partial class MainWindow : Window
                 _trayIcon = null;
             }
         };
+    }
+
+    private void PrepareQuietTrayStart()
+    {
+        // Avoid a visible flash when Windows launches ClipShot at sign-in.
+        ShowInTaskbar = false;
+        ShowActivated = false;
+        WindowState = WindowState.Minimized;
+        Visibility = Visibility.Hidden;
+        _trayNoticeShown = true;
+        StatusText.Text = "ClipShot is running in the system tray";
     }
 
     private void InitializeTrayIcon()
@@ -89,6 +105,7 @@ public partial class MainWindow : Window
             return;
 
         e.Cancel = true;
+        ShowInTaskbar = false;
         Hide();
         StatusText.Text = "ClipShot is running in the system tray";
         if (!_trayNoticeShown && _trayIcon is not null)
@@ -103,6 +120,7 @@ public partial class MainWindow : Window
 
     private void RestoreFromTray()
     {
+        ShowInTaskbar = true;
         Show();
         if (WindowState == WindowState.Minimized)
             WindowState = WindowState.Normal;
@@ -119,7 +137,20 @@ public partial class MainWindow : Window
         System.Windows.Application.Current.Shutdown();
     }
 
-    private async void MainWindow_Loaded(object sender, RoutedEventArgs e) => await CheckForUpdatesAsync();
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (App.StartMinimizedToTray)
+        {
+            // Ensure we stay tray-only even if WPF briefly activated the window.
+            ShowInTaskbar = false;
+            Hide();
+            if (WindowState == WindowState.Minimized)
+                WindowState = WindowState.Normal;
+            StatusText.Text = "ClipShot is running in the system tray";
+        }
+
+        await CheckForUpdatesAsync();
+    }
 
     private async void CheckForUpdates_Click(object sender, RoutedEventArgs e) =>
         await CheckForUpdatesAsync(manual: true);
@@ -247,7 +278,9 @@ public partial class MainWindow : Window
         try
         {
             StartupManager.SetEnabled(enabled);
-            StatusText.Text = enabled ? "ClipShot will start when you sign in" : "ClipShot will not start automatically";
+            StatusText.Text = enabled
+                ? "ClipShot will start in the tray when you sign in"
+                : "ClipShot will not start automatically";
         }
         catch (Exception ex)
         {
