@@ -59,7 +59,7 @@
                 Margin="0,16,0,0">
             <DockPanel LastChildFill="True">
                 <Button x:Name="UpdateNowButton"
-                        Content="Update now"
+                        Content="View update"
                         DockPanel.Dock="Right"
                         Margin="12,0,0,0"
                         Style="{StaticResource PrimaryButton}"
@@ -68,7 +68,7 @@
                         Click="UpdateNow_Click"/>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock x:Name="UpdateNoticeTitle" Text="A new version is available" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}"/>
-                    <TextBlock x:Name="UpdateNoticeDetails" Text="Update now, or keep using this version." FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                    <TextBlock x:Name="UpdateNoticeDetails" Text="See what's new, then update when you're ready." FontSize="12" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </DockPanel>
         </Border>

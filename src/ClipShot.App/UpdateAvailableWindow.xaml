@@ -1,0 +1,150 @@
+<Window x:Class="ClipShot.UpdateAvailableWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Update available"
+        Width="440"
+        SizeToContent="Height"
+        MinWidth="400"
+        MaxWidth="480"
+        MaxHeight="560"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{StaticResource CanvasBrush}"
+        FontFamily="Segoe UI"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Border Background="{StaticResource CardBrush}"
+            BorderBrush="{StaticResource LineBrush}"
+            BorderThickness="1"
+            CornerRadius="16"
+            Margin="12"
+            Padding="22,20,22,18">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <DockPanel LastChildFill="True">
+                <Button x:Name="CloseButton"
+                        DockPanel.Dock="Right"
+                        Content="✕"
+                        Width="32"
+                        Height="32"
+                        Padding="0"
+                        Margin="12,0,0,0"
+                        FontSize="13"
+                        Style="{StaticResource QuietButton}"
+                        ToolTip="Close"
+                        Click="Close_Click"
+                        AutomationProperties.Name="Close update dialog"/>
+                <StackPanel>
+                    <TextBlock Text="Update available"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock x:Name="TitleText"
+                               Text="ClipShot"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource InkBrush}"
+                               Margin="0,4,0,0"
+                               TextWrapping="Wrap"/>
+                    <TextBlock x:Name="SubtitleText"
+                               Text="A newer version is ready to install."
+                               FontSize="13"
+                               Foreground="{StaticResource MutedBrush}"
+                               Margin="0,6,0,0"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </DockPanel>
+
+            <Grid Grid.Row="1" Margin="0,18,0,0">
+                <Button x:Name="UpdateButton"
+                        Height="44"
+                        Style="{StaticResource PrimaryButton}"
+                        Click="Update_Click"
+                        AutomationProperties.Name="Update now">
+                    <Grid>
+                        <StackPanel x:Name="IdleContent" Orientation="Horizontal" HorizontalAlignment="Center">
+                            <TextBlock Text="Update now" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel x:Name="BusyContent"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Visibility="Collapsed">
+                            <Ellipse x:Name="BusySpinner"
+                                     Width="14"
+                                     Height="14"
+                                     Stroke="White"
+                                     StrokeThickness="2"
+                                     StrokeDashArray="2.2 1.4"
+                                     Margin="0,0,10,0"
+                                     RenderTransformOrigin="0.5,0.5"
+                                     VerticalAlignment="Center">
+                                <Ellipse.RenderTransform>
+                                    <RotateTransform x:Name="BusySpinnerRotate"/>
+                                </Ellipse.RenderTransform>
+                            </Ellipse>
+                            <TextBlock x:Name="BusyLabel"
+                                       Text="Downloading…"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                </Button>
+            </Grid>
+
+            <ProgressBar x:Name="DownloadProgress"
+                         Grid.Row="2"
+                         Height="4"
+                         Margin="0,12,0,0"
+                         Minimum="0"
+                         Maximum="1"
+                         Value="0"
+                         Visibility="Collapsed"/>
+
+            <Border Grid.Row="3"
+                    Margin="0,18,0,0"
+                    Background="#F7F8FA"
+                    BorderBrush="{StaticResource LineBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="14,12"
+                    MinHeight="120"
+                    MaxHeight="260">
+                <DockPanel LastChildFill="True">
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="What's new"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource MutedBrush}"
+                               Margin="0,0,0,8"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <TextBlock x:Name="NotesText"
+                                   Text="Bug fixes and improvements."
+                                   FontSize="13"
+                                   LineHeight="20"
+                                   Foreground="{StaticResource InkBrush}"
+                                   TextWrapping="Wrap"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <TextBlock x:Name="StatusText"
+                       Grid.Row="4"
+                       Margin="0,14,0,0"
+                       FontSize="12"
+                       Foreground="{StaticResource MutedBrush}"
+                       TextWrapping="Wrap"
+                       Text="You can close this window and keep using ClipShot."/>
+        </Grid>
+    </Border>
+</Window>
