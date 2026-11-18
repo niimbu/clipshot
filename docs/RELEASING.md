@@ -1,40 +1,66 @@
 # Releasing ClipShot for Windows
 
+## Why Windows blocks ClipShot today
+
+CI logs for current releases show:
+
+```text
+Signing secrets are not configured; continuing with an unsigned build.
+```
+
+Unsigned executables trigger **Microsoft Defender SmartScreen** (“Windows protected your PC”). Users can click **More info → Run anyway**, but the lasting fix is Authenticode signing.
+
 ## Authenticode signing
 
-The Windows build workflow supports optional Authenticode signing. Signing helps Windows and browser security systems establish the publisher and verify that the executable has not been modified. It does not guarantee that Chrome or Microsoft Defender SmartScreen will stop warning about a new download; reputation can take time to build.
+The Windows build workflow already signs when these GitHub Actions secrets exist:
 
-1. Obtain a publicly trusted code-signing certificate from a recognized certificate authority or signing service. A self-signed certificate is not sufficient for public distribution.
-2. Export the certificate as a password-protected PFX file, including its private key.
-3. Base64-encode the PFX file without changing its contents. For example, in PowerShell:
+| Secret | Value |
+| --- | --- |
+| `WINDOWS_SIGNING_CERTIFICATE_BASE64` | Base64 of the password-protected `.pfx` (no line breaks required) |
+| `WINDOWS_SIGNING_CERTIFICATE_PASSWORD` | PFX password |
+
+A **self-signed** certificate is not enough for SmartScreen. Use a publicly trusted code-signing certificate (or a cloud signing service that issues one).
+
+### Practical options for open-source
+
+1. **[SignPath.io](https://signpath.io/)** — free code signing for open-source projects; integrates with GitHub Actions.
+2. **[Azure Trusted Signing](https://learn.microsoft.com/en-us/azure/trusted-signing/)** — Microsoft’s cloud signing service (paid; good SmartScreen reputation path).
+3. A standard OV/EV code-signing certificate from a public CA, exported as PFX.
+
+### Configure the existing workflow (PFX)
+
+1. Obtain a trusted code-signing certificate and export it as a password-protected PFX (private key included).
+2. Base64-encode the PFX without changing its contents. PowerShell:
+
    ```powershell
    [Convert]::ToBase64String([IO.File]::ReadAllBytes(".\publisher.pfx")) | Set-Clipboard
    ```
-4. In the GitHub repository, open **Settings → Secrets and variables → Actions** and add:
-   - `WINDOWS_SIGNING_CERTIFICATE_BASE64`: the base64 text from the previous step.
-   - `WINDOWS_SIGNING_CERTIFICATE_PASSWORD`: the PFX password.
-5. Run the workflow or push a new version tag. The workflow signs and verifies `ClipShot.exe` before creating `ClipShot.zip` and release assets. If the secrets are not configured, the build remains unsigned.
 
-Keep the PFX and password private. Never commit either one to the repository or include them in build artifacts.
+3. In the GitHub repo: **Settings → Secrets and variables → Actions**, add:
+   - `WINDOWS_SIGNING_CERTIFICATE_BASE64`
+   - `WINDOWS_SIGNING_CERTIFICATE_PASSWORD`
+4. Push a new version tag. The workflow signs and verifies `ClipShot.exe` before packaging. If the secrets are missing, the build stays unsigned.
+
+Never commit the PFX or password. Never paste them into chat or issues.
+
+After signing is enabled, ship a new release so every download is signed. SmartScreen reputation still builds with download volume over time; EV/Trusted Signing usually clears faster than unsigned binaries.
 
 ## Chrome download warnings
 
-A code signature is an important trust signal, but it cannot instantly create download reputation. New and low-volume applications can still receive warnings. Prefer the PowerShell installer in [DISTRIBUTION.md](DISTRIBUTION.md) so users do not download the ZIP through Chrome.
+Prefer the PowerShell installer in [DISTRIBUTION.md](DISTRIBUTION.md) so users avoid browser ZIP downloads.
 
-If Chrome displays a warning for an official release, confirm the download came from the [ClipShot Releases page](https://github.com/niimbu/clipshot/releases). Do not ask users to disable Safe Browsing.
-
-If the official release is incorrectly detected, submit the exact release URL and file to Google's [Safe Browsing incorrect warning reporting](https://safebrowsing.google.com/safebrowsing/report_error/). Include the version and SHA-256 hash from `SHA256SUMS.txt`.
+If Chrome warns on an official release, confirm the URL is from [ClipShot Releases](https://github.com/niimbu/clipshot/releases). Do not ask users to disable Safe Browsing. Report false positives to Google [Safe Browsing](https://safebrowsing.google.com/safebrowsing/report_error/) with the SHA-256 from `SHA256SUMS.txt`.
 
 ## Versioning
 
-Keep the `<Version>` in `src/ClipShot.App/ClipShot.App.csproj` identical to the Git tag you push (without the leading `v`). The in-app updater compares that assembly version to the latest GitHub release tag. If the assembly version is higher than the published tag, “Check for updates” will incorrectly report that the app is already up to date.
+Keep `<Version>` in `src/ClipShot.App/ClipShot.App.csproj` identical to the Git tag (without the leading `v`). The in-app updater compares the assembly version to the latest GitHub release tag.
 
-Example: for tag `v1.0.1`, set `<Version>1.0.1</Version>` before tagging.
+Example: for tag `v1.0.12`, set `<Version>1.0.12</Version>` before tagging.
 
 ## Release assets
 
 Each release publishes:
-- `ClipShot.exe` — the direct Windows executable
-- `ClipShot.zip` — the portable distribution (browser download name: ClipShot.zip)
-- `SHA256SUMS.txt` — SHA-256 hashes for the executable and ZIP
 
+- `ClipShot.exe` — the direct Windows executable
+- `ClipShot.zip` — the portable distribution
+- `SHA256SUMS.txt` — SHA-256 hashes for the executable and ZIP

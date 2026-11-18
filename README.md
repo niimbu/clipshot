@@ -56,6 +56,10 @@ This downloads the latest release to `%LOCALAPPDATA%\Programs\ClipShot` and adds
 
 Download **`ClipShot.zip`** or **`ClipShot.exe`** from the [latest release](https://github.com/niimbu/clipshot/releases/latest), then run `ClipShot.exe`. No .NET SDK install required.
 
+### If Windows says “Windows protected your PC”
+
+ClipShot is a new open-source app, so SmartScreen may block the first run. On that screen click **More info**, then **Run anyway**. Prefer the PowerShell installer above over browser downloads. Details: [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
+
 ## Usage
 
 1. Launch ClipShot (or press your region / full-screen hotkey).

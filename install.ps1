@@ -30,6 +30,13 @@ if (-not (Test-Path $exePath)) {
     throw "The download did not produce ClipShot.exe."
 }
 
+# Clear Mark-of-the-Web so Windows doesn't treat the file as an untrusted browser download.
+try {
+    Unblock-File -LiteralPath $exePath -ErrorAction Stop
+} catch {
+    Write-Host "Note: couldn't clear the download mark on ClipShot.exe (continuing)." -ForegroundColor DarkYellow
+}
+
 $wsh = New-Object -ComObject WScript.Shell
 $shortcut = $wsh.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $exePath
@@ -40,3 +47,8 @@ $shortcut.Save()
 Write-Host ""
 Write-Host "ClipShot $($release.tag_name) was installed successfully." -ForegroundColor Green
 Write-Host "You can launch it from the Start Menu or run: $exePath"
+Write-Host ""
+Write-Host "If Windows shows 'Windows protected your PC':" -ForegroundColor Yellow
+Write-Host "  1. Click More info"
+Write-Host "  2. Click Run anyway"
+Write-Host "This is normal for a new open-source app until a code-signing certificate builds reputation."
