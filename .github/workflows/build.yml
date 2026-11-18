@@ -78,7 +78,9 @@ jobs:
           if-no-files-found: error
 
       - name: Sign with SignPath
+        id: signpath-sign
         if: startsWith(github.ref, 'refs/tags/v') && steps.signpath-check.outputs.enabled == 'true'
+        continue-on-error: true
         uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -90,13 +92,17 @@ jobs:
           output-artifact-directory: publish/win-x64-signed
 
       - name: Use SignPath-signed executable
-        if: startsWith(github.ref, 'refs/tags/v') && steps.signpath-check.outputs.enabled == 'true'
+        if: startsWith(github.ref, 'refs/tags/v') && steps.signpath-sign.outcome == 'success'
         shell: pwsh
         run: |
           $signed = Get-ChildItem -Path "publish/win-x64-signed" -Filter "ClipShot.exe" -Recurse | Select-Object -First 1
           if (-not $signed) { throw "SignPath did not return ClipShot.exe." }
           Copy-Item -LiteralPath $signed.FullName -Destination "publish/win-x64/ClipShot.exe" -Force
           Write-Host "Replaced publish/win-x64/ClipShot.exe with the SignPath-signed build."
+
+      - name: Continue with the unsigned build
+        if: startsWith(github.ref, 'refs/tags/v') && steps.signpath-sign.outcome == 'failure'
+        run: echo "::warning::SignPath signing failed. Publishing the unsigned build so the release is still available."
 
       # Optional fallback: local PFX in repo secrets (not needed when SignPath is configured).
       - name: Sign Windows executable (PFX fallback)
