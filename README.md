@@ -4,12 +4,13 @@
 
 <p align="center">
   <b>A free, open-source screenshot tool for Windows.</b><br>
-  Press a key, drag a region or grab the screen, mark it up, then copy or save — without opening another app first.
+  Press a key, drag a region or grab the primary screen, mark it up, then copy it or save a PNG.
 </p>
 
 <p align="center">
   <a href="https://github.com/niimbu/clipshot/releases/latest"><b>Download</b></a> ·
   <a href="#install">Install</a> ·
+  <a href="#use-it">Use it</a> ·
   <a href="#features">Features</a> ·
   <a href="#shortcuts">Shortcuts</a> ·
   <a href="#development">Development</a>
@@ -27,16 +28,16 @@
 <table>
   <tr>
     <td width="33%" valign="top">
-      <b>Where you already are</b><br>
-      Print Screen starts a region capture. The editor opens on the shot, so you annotate before you leave the screen you were looking at.
+      <b>Region or full screen</b><br>
+      <kbd>PrtScn</kbd> starts a region. <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd> captures the primary display. Both shortcuts can be changed in the main window.
     </td>
     <td width="33%" valign="top">
-      <b>Mark it up, then hide what shouldn't leave</b><br>
-      Pen, highlighter, arrows, shapes, text, and numbered steps. Blur or pixelate a password, a name, or a balance before you copy.
+      <b>Annotate before you share</b><br>
+      Pen, highlighter, arrows, shapes, text, and numbered steps. Blur or pixelate a region, then copy with <kbd>Space</kbd> or save a PNG.
     </td>
     <td width="33%" valign="top">
-      <b>Stays on your computer</b><br>
-      Screenshots are not uploaded. ClipShot works offline and only talks to GitHub when you check for an update.
+      <b>Screenshots stay on this PC</b><br>
+      Nothing is uploaded. ClipShot works offline. It contacts GitHub only when you check for an update or install one.
     </td>
   </tr>
 </table>
@@ -45,12 +46,12 @@
 
 <p align="center">
   <img src="docs/images/clipshot-annotate.jpg" alt="ClipShot annotation editor with arrows, highlights, blur, and numbered steps" width="820"><br>
-  <sub>Capture, annotate, then copy with <kbd>Space</kbd> or save a PNG.</sub>
+  <sub>The editor opens on the capture. <kbd>Space</kbd> copies it and closes. Save writes a PNG.</sub>
 </p>
 
 ## Install
 
-Windows 10 or 11, 64-bit. The release is a self-contained app, so you do not install the .NET SDK.
+Windows 10 or 11, 64-bit. Releases are self-contained, so the .NET SDK is only needed if you build from source.
 
 ### One-line installer
 
@@ -60,43 +61,63 @@ In PowerShell:
 irm https://raw.githubusercontent.com/niimbu/clipshot/main/install.ps1 | iex
 ```
 
-This downloads the latest `ClipShot.exe` to `%LOCALAPPDATA%\Programs\ClipShot`, clears the download mark, and adds a Start Menu shortcut. If ClipShot is already running, the script closes it first so the file can be replaced.
+The script downloads the latest `ClipShot.exe` into `%LOCALAPPDATA%\Programs\ClipShot`, clears the download mark on that file, and creates a Start Menu shortcut. If ClipShot is already running, it closes the process first so the file can be replaced. After that, launch ClipShot from the Start Menu or run:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\ClipShot\ClipShot.exe"
+```
 
 ### Portable
 
-Download **`ClipShot.zip`** or **`ClipShot.exe`** from the [latest release](https://github.com/niimbu/clipshot/releases/latest) and run `ClipShot.exe`. Each release also includes `SHA256SUMS.txt`.
+Download **`ClipShot.zip`** or **`ClipShot.exe`** from the [latest release](https://github.com/niimbu/clipshot/releases/latest) and run `ClipShot.exe`. Each release also includes `SHA256SUMS.txt`. A portable copy keeps its settings in `%APPDATA%\ClipShot\settings.json`, the same place as an installed copy.
 
 ### If Windows says “Windows protected your PC”
 
-ClipShot is a new open-source app. Until a release is Authenticode-signed and has been downloaded enough, SmartScreen may block the first run.
+SmartScreen can block the first run of a new or unsigned app.
 
 1. On that screen, click **More info**.
 2. Click **Run anyway**.
 
-Prefer the PowerShell installer over a browser download. If a downloaded file still will not start:
+The PowerShell installer is the usual path. If a file downloaded in a browser still will not start:
 
 ```powershell
 Unblock-File "$env:USERPROFILE\Downloads\ClipShot.exe"
 ```
 
-Details: [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
+More on distribution and checksums: [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
 
-ClipShot can check GitHub for a newer release from the main window. When one exists, **View update** shows the notes and downloads `ClipShot.exe` from this repository's releases.
+### Updates
+
+The main window has **Check for updates**. When a newer GitHub release exists, a banner and the tray menu offer **View update**. That window shows the release notes. **Update now** downloads `ClipShot.exe` from this repository and restarts the app. Shortcuts and the region-dim setting are kept.
+
+## Use it
+
+1. Launch ClipShot. It stays available from the system tray, so the global shortcuts work while the window is closed.
+2. Press <kbd>PrtScn</kbd> (region) or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd> (primary display), or use the buttons on the main window.
+3. For a region, drag the area you want. Hold <kbd>Shift</kbd> to keep the selection square. Right-click or press <kbd>Esc</kbd> to cancel. A drag smaller than a few pixels is ignored.
+4. The editor opens on top of the capture. Pick a tool and a color, then draw.
+5. Press <kbd>Space</kbd> to copy the image to the clipboard and close the editor, or use **Save** to write a PNG. <kbd>Esc</kbd> closes the editor and discards the shot.
+
+The suggested PNG name is `ClipShot-yyyyMMdd-HHmmss.png`. You choose the folder in the save dialog. **Save PNG** on the full-screen card writes the primary display with no editor.
+
+Closing the main window hides ClipShot to the tray. Shortcuts stay active. The first time this happens, a tray balloon says so. Right-click the tray icon and choose **Exit** to quit. Double-click the icon, or choose **Open ClipShot**, to bring the window back.
+
+**Start ClipShot in the tray when I sign in to Windows** adds a current-user Run entry. It does not install a Windows service.
 
 ## Features
 
-- **Region capture.** Drag the area you want. Everything outside the selection dims; the dim amount is a slider on the main window (0–90%).
-- **Full screen.** Grab the primary display, then annotate, copy, or save. A **Save PNG** action on the full-screen card writes the shot without opening the editor.
-- **In-place editor.** Pen, highlighter, arrow, line, rectangle, ellipse, text, and numbered steps. Eight colors: red, orange, yellow, green, blue, purple, white, and black.
-- **Privacy tools.** Blur or pixelate a region. The effect previews live and can be moved or rescaled.
-- **Select and refine.** Move annotations. Drag the endpoints of a line or arrow. Box handles rescale shapes, blur, and pixelate.
+- **Region capture.** Drag the area you want. The desktop outside the selection dims. The **Region dim** slider on the main window runs from 0% (outside stays fully visible) to 90%.
+- **Full screen.** Captures the primary display, then opens the editor. Other monitors are not included.
+- **Editor tools.** Pen, highlighter, arrow, line, rectangle, ellipse, text, and numbered steps.
+- **Colors.** Red, orange, yellow, green, blue, purple, white, and black.
+- **Text.** Click to place a label. <kbd>Enter</kbd> commits it. <kbd>Esc</kbd> cancels that label. <kbd>Space</kbd> does not copy while the text field is focused.
+- **Privacy tools.** Blur and pixelate preview on the capture. Select a box afterward to move it or drag its handles.
+- **Select.** Move any annotation. Lines and arrows have endpoint grips. Shapes, blur, and pixelate have box handles. <kbd>Delete</kbd> removes the selection, or the last annotation when nothing is selected.
 - **Eraser.** Scrub pen strokes, shapes, text, and numbers.
-- **Undo and redo.** <kbd>Ctrl</kbd>+<kbd>Z</kbd> and <kbd>Ctrl</kbd>+<kbd>Y</kbd> (or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>).
-- **Copy or save.** <kbd>Space</kbd> copies the image and closes the editor. Save writes a PNG. <kbd>Esc</kbd> cancels the capture or closes the editor.
-- **Straight lines.** Hold <kbd>Shift</kbd> for straight pen and highlight strokes, axis-aligned lines and arrows, and squares or circles.
-- **Global hotkeys.** Defaults are <kbd>PrtScn</kbd> for a region and <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd> for the full screen. Click a shortcut field and press a new combination; it saves immediately.
-- **Tray app.** ClipShot can start in the tray when you sign in to Windows. The tray menu opens the window or exits.
-- **Settings stay local.** Shortcuts and the region dim live in `%APPDATA%\ClipShot\settings.json`.
+- **Undo and redo.** <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes. <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redoes.
+- **Straight marks.** Hold <kbd>Shift</kbd> while drawing for straight pen and highlight strokes, axis-aligned lines and arrows, and squares or circles. Hold <kbd>Shift</kbd> while resizing a shape to keep it square.
+- **Shortcuts.** Defaults are <kbd>PrtScn</kbd> for a region and <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd> for the full screen. Click a field, press the new combination, and it saves immediately. **Reset** restores the defaults. If Windows will not register a combination, the status line says so.
+- **Settings file.** `%APPDATA%\ClipShot\settings.json` stores the two shortcuts and the region-dim value.
 
 ## Screenshots
 
@@ -112,7 +133,7 @@ ClipShot can check GitHub for a newer release from the main window. When one exi
   <tr>
     <td colspan="2" align="center">
       <img src="docs/images/clipshot-main.jpg" alt="ClipShot main window with region and full-screen actions and shortcut fields" width="560"><br>
-      <sub>Main window: region, full screen, shortcuts, and the region-dim slider.</sub>
+      <sub>Main window: region, full screen, shortcuts, startup, and the region-dim slider.</sub>
     </td>
   </tr>
 </table>
@@ -121,12 +142,14 @@ ClipShot can check GitHub for a newer release from the main window. When one exi
 
 | Where | Keys | What it does |
 |---|---|---|
-| Anywhere | <kbd>PrtScn</kbd> | Start a region capture (default; change it in the app) |
+| Anywhere | <kbd>PrtScn</kbd> | Start a region capture (default) |
 | Anywhere | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd> | Capture the primary display (default) |
 | Region overlay | drag | Choose the area |
-| Region overlay | <kbd>Esc</kbd> | Cancel |
-| Editor | <kbd>Space</kbd> | Copy and close (ignored while you are typing text) |
-| Editor | <kbd>Esc</kbd> | Close without copying |
+| Region overlay | <kbd>Shift</kbd> while dragging | Keep the selection square |
+| Region overlay | right-click or <kbd>Esc</kbd> | Cancel |
+| Editor | <kbd>Space</kbd> | Copy and close. Ignored while typing text |
+| Editor | <kbd>Esc</kbd> | Close and discard the capture. While typing, cancels that label |
+| Editor | <kbd>Enter</kbd> | Commit the text label you are typing |
 | Editor | <kbd>Ctrl</kbd>+<kbd>Z</kbd> | Undo |
 | Editor | <kbd>Ctrl</kbd>+<kbd>Y</kbd> | Redo |
 | Editor | <kbd>Delete</kbd> | Delete the selected annotation, or the last one |
@@ -143,26 +166,24 @@ dotnet build ClipShot.slnx -c Release
 dotnet run --project src/ClipShot.App/ClipShot.App.csproj -c Release
 ```
 
-The app is WPF, with Windows Forms used for the tray icon and screen capture. Branding assets are generated by `assets/branding/build-branding.ps1` (ImageMagick). GitHub Actions publishes a self-contained single-file `win-x64` build on version tags.
+The app is WPF. Windows Forms is used for the tray icon and for copying the screen. `assets/branding/build-branding.ps1` turns the SVG mark into `clipshot.ico` and `clipshot-icon.png` with ImageMagick. GitHub Actions runs that script, then publishes a self-contained single-file `win-x64` build. A `v*` tag also uploads `ClipShot.exe`, `ClipShot.zip`, and `SHA256SUMS.txt` to the release.
 
 [Distribution](docs/DISTRIBUTION.md) · [Releasing](docs/RELEASING.md) · [Roadmap](docs/ROADMAP.md)
 
-Issues and pull requests are welcome. For a bug, include your Windows version and the steps to reproduce it. If ClipShot saves you a trip through another screenshot tool, a star helps other people find it.
+Issues and pull requests are welcome. For a bug, include your Windows version and the steps to reproduce it.
 
 ## Code signing
 
 ClipShot is published by [niimbu](https://github.com/niimbu). Release builds come from this repository's GitHub Actions workflow.
 
-Signing is set up for [SignPath](https://signpath.io/) open-source signing. Until that project is approved and the Actions secrets are in place, tagged releases stay unsigned and SmartScreen can warn on first launch. A local Authenticode certificate can be used as a fallback. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
+Signing is set up for [SignPath](https://signpath.io/) open-source signing. Until that project is approved and the Actions secrets are in place, tagged releases stay unsigned, and SmartScreen can warn on first launch. A local Authenticode certificate can be used as a fallback. The steps are in [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Privacy
 
-ClipShot captures the screen on your computer and does not upload screenshots. It collects no usage data and sends no telemetry. It connects to the internet only:
+ClipShot captures the screen on your computer. Screenshots are copied to the clipboard or saved where you choose. The app collects no usage data and sends no telemetry. It connects to the internet only:
 
 - when you check for updates, to ask GitHub (`api.github.com`) whether a newer release exists
 - when you start an update, to download `ClipShot.exe` from this repository's GitHub releases (`github.com`)
-
-“Start ClipShot in the tray when I sign in” writes a current-user Run key. It does not install a service.
 
 ## License
 
