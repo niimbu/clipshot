@@ -600,6 +600,29 @@ public partial class MainWindow : Window
             RegionHotkeyHint.Text = region;
         if (ScreenHotkeyHint is not null)
             ScreenHotkeyHint.Text = screen;
+        if (GuideRegionHotkey is not null)
+            GuideRegionHotkey.Text = region;
+        if (GuideScreenHotkey is not null)
+            GuideScreenHotkey.Text = screen;
+    }
+
+    private void StarOnGitHub_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("https://github.com/niimbu/clipshot")
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "Couldn't open GitHub";
+            MessageBox.Show($"ClipShot couldn't open the GitHub page.\n\n{ex.Message}",
+                "GitHub",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
     }
 
     private void DimOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

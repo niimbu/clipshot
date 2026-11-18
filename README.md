@@ -116,7 +116,8 @@ Closing the main window hides ClipShot to the tray. Shortcuts stay active. The f
 - **Eraser.** Scrub pen strokes, shapes, text, and numbers.
 - **Undo and redo.** <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes. <kbd>Ctrl</kbd>+<kbd>Y</kbd> or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redoes.
 - **Straight marks.** Hold <kbd>Shift</kbd> while drawing for straight pen and highlight strokes, axis-aligned lines and arrows, and squares or circles. Hold <kbd>Shift</kbd> while resizing a shape to keep it square.
-- **Shortcuts.** Defaults are <kbd>PrtScn</kbd> for a region and <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd> for the full screen. Click a field, press the new combination, and it saves immediately. **Reset** restores the defaults. If Windows will not register a combination, the status line says so.
+- **Shortcuts.** Defaults are <kbd>PrtScn</kbd> for a region and <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd> for the full screen. Click a field, press the new combination, and it saves immediately. **Reset** restores the defaults. If Windows will not register a combination, the status line says so. The main window lists every shortcut, including <kbd>Space</kbd> to copy.
+- **Star on GitHub.** The button on the main window opens https://github.com/niimbu/clipshot so you can star the repository.
 - **Settings file.** `%APPDATA%\ClipShot\settings.json` stores the two shortcuts and the region-dim value.
 
 ## Screenshots
