@@ -56,10 +56,13 @@ Or with MSBuild (after installing the packaging workload):
 msbuild src\ClipShot.Package\ClipShot.Package.wapproj `
   /p:Configuration=Release `
   /p:Platform=x64 `
+  /p:TargetPlatformVersion=10.0.19041.0 `
   /p:UapAppxPackageBuildMode=StoreUpload `
   /p:AppxBundle=Always `
   /p:AppxPackageDir="$PWD\artifacts\msix\"
 ```
+
+Use a `TargetPlatformVersion` that matches a Windows SDK installed on the machine (CI auto-detects the newest UAP platform).
 
 CI uploads an MSIX/AppxUpload artifact on Windows runners when packaging succeeds (see `.github/workflows/build.yml`). Associate the package with your Partner Center app before the first submission if the wizard has not done that yet.
 
