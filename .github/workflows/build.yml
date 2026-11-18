@@ -61,10 +61,13 @@ jobs:
         run: |
           $outDir = Join-Path $PWD "artifacts/msix"
           New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          # Restore with the packaging RID so project.assets.json includes win-x64.
+          dotnet restore src\ClipShot.App\ClipShot.App.csproj -r win-x64
           msbuild src\ClipShot.Package\ClipShot.Package.wapproj `
             /restore `
             /p:Configuration=Release `
             /p:Platform=x64 `
+            /p:RuntimeIdentifier=win-x64 `
             /p:UapAppxPackageBuildMode=StoreUpload `
             /p:AppxBundle=Always `
             /p:AppxPackageDir="$outDir\\" `
