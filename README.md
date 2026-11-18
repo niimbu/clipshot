@@ -37,7 +37,7 @@
     </td>
     <td width="33%" valign="top">
       <b>Screenshots stay on this PC</b><br>
-      Nothing is uploaded. ClipShot works offline. It contacts GitHub only when you check for an update or install one.
+      Nothing is uploaded. ClipShot works offline. GitHub installs contact GitHub only for updates; Store installs update through the Store.
     </td>
   </tr>
 </table>
@@ -84,7 +84,7 @@ The PowerShell installer is the usual path. If a file downloaded in a browser st
 Unblock-File "$env:USERPROFILE\Downloads\ClipShot.exe"
 ```
 
-More on distribution and checksums: [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
+More on distribution and checksums: [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md). Microsoft Store packaging: [docs/MICROSOFT_STORE.md](docs/MICROSOFT_STORE.md).
 
 ### Updates
 
@@ -167,9 +167,9 @@ dotnet build ClipShot.slnx -c Release
 dotnet run --project src/ClipShot.App/ClipShot.App.csproj -c Release
 ```
 
-The app is WPF. Windows Forms is used for the tray icon and for copying the screen. `assets/branding/build-branding.ps1` turns the SVG mark into `clipshot.ico` and `clipshot-icon.png` with ImageMagick. GitHub Actions runs that script, then publishes a self-contained single-file `win-x64` build. A `v*` tag also uploads `ClipShot.exe`, `ClipShot.zip`, and `SHA256SUMS.txt` to the release.
+The app is WPF. Windows Forms is used for the tray icon and for copying the screen. `assets/branding/build-branding.ps1` turns the SVG mark into `clipshot.ico` and `clipshot-icon.png` with ImageMagick. `assets/branding/build-store-assets.ps1` builds the MSIX tile images. GitHub Actions runs those scripts, publishes a self-contained single-file `win-x64` build, and attempts an MSIX Store package artifact. A `v*` tag also uploads `ClipShot.exe`, `ClipShot.zip`, and `SHA256SUMS.txt` to the release.
 
-[Distribution](docs/DISTRIBUTION.md) · [Releasing](docs/RELEASING.md) · [Roadmap](docs/ROADMAP.md)
+[Distribution](docs/DISTRIBUTION.md) · [Microsoft Store](docs/MICROSOFT_STORE.md) · [Releasing](docs/RELEASING.md) · [Roadmap](docs/ROADMAP.md)
 
 Issues and pull requests are welcome. For a bug, include your Windows version and the steps to reproduce it.
 
@@ -181,10 +181,12 @@ Signing is set up for [SignPath](https://signpath.io/) open-source signing. Unti
 
 ### Privacy
 
-ClipShot captures the screen on your computer. Screenshots are copied to the clipboard or saved where you choose. The app collects no usage data and sends no telemetry. It connects to the internet only:
+ClipShot captures the screen on your computer. Screenshots are copied to the clipboard or saved where you choose. The app collects no usage data and sends no telemetry. GitHub installs connect to the internet only:
 
 - when you check for updates, to ask GitHub (`api.github.com`) whether a newer release exists
 - when you start an update, to download `ClipShot.exe` from this repository's GitHub releases (`github.com`)
+
+Microsoft Store installs do not use those GitHub update calls; they update through the Store.
 
 ## License
 

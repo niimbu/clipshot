@@ -58,6 +58,12 @@ public partial class MainWindow : Window
         // Upgrade legacy Run-key entries so login launches with --autostart (tray only).
         try { StartupManager.EnsureCurrentCommand(); }
         catch { /* keep going if the registry is temporarily unavailable */ }
+        if (PackageEnvironment.IsPackaged)
+        {
+            // Store installs update through the Microsoft Store, not GitHub Releases.
+            CheckForUpdatesButton.Visibility = Visibility.Collapsed;
+            UpdateNoticePanel.Visibility = Visibility.Collapsed;
+        }
         InitializeTrayIcon();
         if (App.StartMinimizedToTray)
             PrepareQuietTrayStart();
@@ -65,7 +71,8 @@ public partial class MainWindow : Window
         Closing += MainWindow_Closing;
         Loaded += MainWindow_Loaded;
         _updateCheckTimer.Tick += async (_, _) => await CheckForUpdatesAsync();
-        _updateCheckTimer.Start();
+        if (!PackageEnvironment.IsPackaged)
+            _updateCheckTimer.Start();
         Closed += (_, _) =>
         {
             _updateCheckTimer.Stop();
@@ -208,6 +215,13 @@ public partial class MainWindow : Window
 
     private async Task CheckForUpdatesAsync(bool manual = false)
     {
+        if (PackageEnvironment.IsPackaged)
+        {
+            if (manual)
+                StatusText.Text = "Store installs update through the Microsoft Store.";
+            return;
+        }
+
         if (_updateCheckInFlight)
             return;
 

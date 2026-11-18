@@ -12,4 +12,12 @@ This writes:
 - `clipshot-icon.png` — UI and Start Menu imagery
 - `clipshot.ico` — application icon
 
-The GitHub Actions Windows build runs this script before publishing.
+Store / MSIX tile assets:
+
+```powershell
+./assets/branding/build-store-assets.ps1
+```
+
+This writes PNGs under `src/ClipShot.Package/Images/` (StoreLogo, tiles, splash).
+
+The GitHub Actions Windows build runs both scripts before publishing.

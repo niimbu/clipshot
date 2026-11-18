@@ -16,6 +16,10 @@ From the [latest release](https://github.com/niimbu/clipshot/releases/latest), d
 
 Each release also includes `SHA256SUMS.txt` for verification.
 
+## Microsoft Store
+
+Store packaging (MSIX) lives in `src/ClipShot.Package/`. Microsoft resigns Store submissions, which avoids SmartScreen for Store installs. Setup and submission steps: [MICROSOFT_STORE.md](MICROSOFT_STORE.md).
+
 ## If Windows blocks ClipShot
 
 SmartScreen often shows **Windows protected your PC** for new or unsigned apps. ClipShot is safe when downloaded from the official GitHub releases.
