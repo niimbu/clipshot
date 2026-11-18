@@ -24,8 +24,9 @@ function New-Asset([string]$Name, [int]$Width, [int]$Height, [string]$Background
     $pad = [Math]::Max(2, [int]([Math]::Min($Width, $Height) * 0.18))
     $innerW = [Math]::Max(1, $Width - (2 * $pad))
     $innerH = [Math]::Max(1, $Height - (2 * $pad))
+    # Quote ImageMagick parentheses so PowerShell does not treat them as operators.
     & magick.exe -size "${Width}x${Height}" "xc:$Background" `
-        \( -background none -density 1200 $svg -resize "${innerW}x${innerH}" \) `
+        "(" -background none -density 1200 $svg -resize "${innerW}x${innerH}" ")" `
         -gravity center -compose over -composite -strip $dest
     if ($LASTEXITCODE -ne 0) { throw "Failed to generate $Name" }
     Write-Host "  $dest"
