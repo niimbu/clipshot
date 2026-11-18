@@ -7,6 +7,33 @@ $repo = "niimbu/clipshot"
 $installDir = Join-Path $env:LOCALAPPDATA "Programs\ClipShot"
 $shortcutPath = Join-Path ([Environment]::GetFolderPath("Programs")) "ClipShot.lnk"
 $apiUrl = "https://api.github.com/repos/$repo/releases/latest"
+$exePath = Join-Path $installDir "ClipShot.exe"
+
+function Stop-ClipShotProcesses {
+    $running = @(Get-Process -Name "ClipShot" -ErrorAction SilentlyContinue)
+    if ($running.Count -eq 0) { return }
+
+    Write-Host "ClipShot is running — closing it so the install can update the file..." -ForegroundColor Yellow
+    foreach ($proc in $running) {
+        try { $proc.CloseMainWindow() | Out-Null } catch {}
+    }
+
+    Start-Sleep -Milliseconds 800
+    $stillRunning = @(Get-Process -Name "ClipShot" -ErrorAction SilentlyContinue)
+    if ($stillRunning.Count -gt 0) {
+        Write-Host "Force-stopping ClipShot..." -ForegroundColor Yellow
+        $stillRunning | Stop-Process -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 500
+    }
+
+    $deadline = (Get-Date).AddSeconds(10)
+    while ((Get-Date) -lt $deadline) {
+        if (-not (Get-Process -Name "ClipShot" -ErrorAction SilentlyContinue)) { return }
+        Start-Sleep -Milliseconds 250
+    }
+
+    throw "ClipShot is still running and locking $exePath. Close it from the system tray (right-click → Exit), then run the installer again."
+}
 
 Write-Host "Finding the latest ClipShot release..." -ForegroundColor Cyan
 try {
@@ -21,20 +48,30 @@ if (-not $asset) {
 }
 
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
-$exePath = Join-Path $installDir "ClipShot.exe"
+Stop-ClipShotProcesses
 
-Write-Host "Downloading ClipShot $($release.tag_name)..." -ForegroundColor Cyan
-Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $exePath
-
-if (-not (Test-Path $exePath)) {
-    throw "The download did not produce ClipShot.exe."
-}
-
-# Clear Mark-of-the-Web so Windows doesn't treat the file as an untrusted browser download.
+$tempPath = Join-Path $installDir ("ClipShot.download." + [Guid]::NewGuid().ToString("N") + ".exe")
 try {
-    Unblock-File -LiteralPath $exePath -ErrorAction Stop
-} catch {
-    Write-Host "Note: couldn't clear the download mark on ClipShot.exe (continuing)." -ForegroundColor DarkYellow
+    Write-Host "Downloading ClipShot $($release.tag_name)..." -ForegroundColor Cyan
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempPath
+
+    if (-not (Test-Path $tempPath)) {
+        throw "The download did not produce ClipShot.exe."
+    }
+
+    # Clear Mark-of-the-Web so Windows doesn't treat the file as an untrusted browser download.
+    try {
+        Unblock-File -LiteralPath $tempPath -ErrorAction Stop
+    } catch {
+        Write-Host "Note: couldn't clear the download mark on ClipShot.exe (continuing)." -ForegroundColor DarkYellow
+    }
+
+    Move-Item -LiteralPath $tempPath -Destination $exePath -Force
+}
+finally {
+    if (Test-Path $tempPath) {
+        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 $wsh = New-Object -ComObject WScript.Shell
@@ -51,4 +88,4 @@ Write-Host ""
 Write-Host "If Windows shows 'Windows protected your PC':" -ForegroundColor Yellow
 Write-Host "  1. Click More info"
 Write-Host "  2. Click Run anyway"
-Write-Host "This is normal for a new open-source app until a code-signing certificate builds reputation."
+Write-Host "This is normal for a new open-source app until code signing builds reputation."

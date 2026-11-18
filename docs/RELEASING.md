@@ -2,65 +2,75 @@
 
 ## Why Windows blocks ClipShot today
 
-CI logs for current releases show:
+If CI logs show unsigned builds, SmartScreen shows **Windows protected your PC**. Users can click **More info → Run anyway**. The lasting fix is Authenticode signing via **SignPath OSS** (free for open source).
 
-```text
-Signing secrets are not configured; continuing with an unsigned build.
+## SignPath OSS (recommended — free)
+
+### 1. Apply
+
+1. Open https://signpath.io/solutions/open-source-community
+2. Apply for free open-source signing for `https://github.com/niimbu/clipshot`
+3. Wait for approval (often a few days)
+
+### 2. Configure the SignPath project
+
+After approval, in the SignPath dashboard:
+
+| Setting | Suggested value |
+| --- | --- |
+| Project slug | `clipshot` |
+| Signing policy slug | `release-signing` (auto-approve for CI is fine for OSS) |
+| Trusted build system | GitHub.com |
+| Repository | `niimbu/clipshot` |
+| Artifact configuration | paste [`.signpath/artifact-configurations/default.xml`](../.signpath/artifact-configurations/default.xml) as the **default** |
+
+Also install the **SignPath GitHub App** on the `niimbu/clipshot` repository.
+
+### 3. Add GitHub Actions secret + variables
+
+In the repo: **Settings → Secrets and variables → Actions**
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| Secret | `SIGNPATH_API_TOKEN` | API token from SignPath (submitter permission) |
+| Variable | `SIGNPATH_ORGANIZATION_ID` | Organization UUID from SignPath |
+| Variable | `SIGNPATH_PROJECT_SLUG` | `clipshot` |
+| Variable | `SIGNPATH_SIGNING_POLICY_SLUG` | `release-signing` |
+
+Do **not** paste the API token into chat or commit it.
+
+### 4. Ship a signed release
+
+Bump `<Version>` in `src/ClipShot.App/ClipShot.App.csproj`, then:
+
+```powershell
+git tag v1.0.13
+git push origin v1.0.13
 ```
 
-Unsigned executables trigger **Microsoft Defender SmartScreen** (“Windows protected your PC”). Users can click **More info → Run anyway**, but the lasting fix is Authenticode signing.
+On `v*` tags, the workflow uploads `ClipShot.exe` to SignPath, waits for signing, then publishes the signed exe/zip. CI will note when SignPath is enabled.
 
-## Authenticode signing
+Until secrets/vars are set, tag builds stay unsigned (with a warning) so releases do not hard-fail.
 
-The Windows build workflow already signs when these GitHub Actions secrets exist:
+## PFX fallback (optional)
 
-| Secret | Value |
-| --- | --- |
-| `WINDOWS_SIGNING_CERTIFICATE_BASE64` | Base64 of the password-protected `.pfx` (no line breaks required) |
-| `WINDOWS_SIGNING_CERTIFICATE_PASSWORD` | PFX password |
+If you later buy your own certificate, you can still use:
 
-A **self-signed** certificate is not enough for SmartScreen. Use a publicly trusted code-signing certificate (or a cloud signing service that issues one).
+- `WINDOWS_SIGNING_CERTIFICATE_BASE64`
+- `WINDOWS_SIGNING_CERTIFICATE_PASSWORD`
 
-### Practical options for open-source
-
-1. **[SignPath.io](https://signpath.io/)** — free code signing for open-source projects; integrates with GitHub Actions.
-2. **[Azure Trusted Signing](https://learn.microsoft.com/en-us/azure/trusted-signing/)** — Microsoft’s cloud signing service (paid; good SmartScreen reputation path).
-3. A standard OV/EV code-signing certificate from a public CA, exported as PFX.
-
-### Configure the existing workflow (PFX)
-
-1. Obtain a trusted code-signing certificate and export it as a password-protected PFX (private key included).
-2. Base64-encode the PFX without changing its contents. PowerShell:
-
-   ```powershell
-   [Convert]::ToBase64String([IO.File]::ReadAllBytes(".\publisher.pfx")) | Set-Clipboard
-   ```
-
-3. In the GitHub repo: **Settings → Secrets and variables → Actions**, add:
-   - `WINDOWS_SIGNING_CERTIFICATE_BASE64`
-   - `WINDOWS_SIGNING_CERTIFICATE_PASSWORD`
-4. Push a new version tag. The workflow signs and verifies `ClipShot.exe` before packaging. If the secrets are missing, the build stays unsigned.
-
-Never commit the PFX or password. Never paste them into chat or issues.
-
-After signing is enabled, ship a new release so every download is signed. SmartScreen reputation still builds with download volume over time; EV/Trusted Signing usually clears faster than unsigned binaries.
+PFX signing runs only when SignPath is not configured.
 
 ## Chrome download warnings
 
-Prefer the PowerShell installer in [DISTRIBUTION.md](DISTRIBUTION.md) so users avoid browser ZIP downloads.
-
-If Chrome warns on an official release, confirm the URL is from [ClipShot Releases](https://github.com/niimbu/clipshot/releases). Do not ask users to disable Safe Browsing. Report false positives to Google [Safe Browsing](https://safebrowsing.google.com/safebrowsing/report_error/) with the SHA-256 from `SHA256SUMS.txt`.
+Prefer the PowerShell installer in [DISTRIBUTION.md](DISTRIBUTION.md). Report false positives to Google [Safe Browsing](https://safebrowsing.google.com/safebrowsing/report_error/) with the SHA-256 from `SHA256SUMS.txt`.
 
 ## Versioning
 
-Keep `<Version>` in `src/ClipShot.App/ClipShot.App.csproj` identical to the Git tag (without the leading `v`). The in-app updater compares the assembly version to the latest GitHub release tag.
-
-Example: for tag `v1.0.12`, set `<Version>1.0.12</Version>` before tagging.
+Keep `<Version>` in `src/ClipShot.App/ClipShot.App.csproj` identical to the Git tag (without the leading `v`).
 
 ## Release assets
 
-Each release publishes:
-
-- `ClipShot.exe` — the direct Windows executable
-- `ClipShot.zip` — the portable distribution
-- `SHA256SUMS.txt` — SHA-256 hashes for the executable and ZIP
+- `ClipShot.exe` — Windows executable
+- `ClipShot.zip` — portable package
+- `SHA256SUMS.txt` — SHA-256 hashes
