@@ -66,11 +66,9 @@ Use a `TargetPlatformVersion` that matches a Windows SDK installed on the machin
 
 CI uploads an MSIX/AppxUpload artifact on Windows runners when packaging succeeds (see `.github/workflows/build.yml`). Associate the package with your Partner Center app before the first submission if the wizard has not done that yet.
 
-## Temporary packaging certificate
+## Signing
 
-`ClipShot.Package_TemporaryKey.pfx` is a **throwaway** cert used only so the packaging project can produce a signed local package. Microsoft re-signs Store submissions. Do not treat this PFX as Authenticode for GitHub Releases.
-
-After you associate the app in Visual Studio, Partner Center / VS may replace the publisher and certificate settings to match your account.
+CI builds StoreUpload packages with `AppxPackageSigningEnabled=false`. Microsoft re-signs Store submissions. For local sideload testing, use Visual Studio **Create App Packages** (or enable signing with your own test certificate) after associating the app with Partner Center.
 
 ## Submission checklist
 

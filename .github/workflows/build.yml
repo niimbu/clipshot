@@ -87,7 +87,8 @@ jobs:
             /p:UapAppxPackageBuildMode=StoreUpload `
             /p:AppxBundle=Always `
             /p:AppxPackageDir="$outDir\\" `
-            /p:AppxPackageSigningEnabled=true
+            /p:AppxPackageSigningEnabled=false `
+            /p:AppxBundlePlatforms=x64
           $packages = Get-ChildItem -Path $outDir -Recurse -Include *.msix,*.msixbundle,*.appxupload,*.appxbundle -ErrorAction SilentlyContinue
           if (-not $packages) {
             throw "MSIX packaging produced no package files under artifacts/msix."

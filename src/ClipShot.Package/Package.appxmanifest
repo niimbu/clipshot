@@ -54,7 +54,7 @@
         <uap:SplashScreen Image="Images\SplashScreen.png" BackgroundColor="#F2F3F5"/>
       </uap:VisualElements>
       <Extensions>
-        <desktop:Extension Category="windows.startupTask" Executable="ClipShot.exe" EntryPoint="Windows.FullTrustApplication">
+        <desktop:Extension Category="windows.startupTask">
           <desktop:StartupTask TaskId="ClipShotStartup" Enabled="false" DisplayName="ClipShot" />
         </desktop:Extension>
       </Extensions>

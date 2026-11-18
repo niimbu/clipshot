@@ -23,14 +23,12 @@
     <TargetPlatformVersion>10.0.19041.0</TargetPlatformVersion>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <DefaultLanguage>en-US</DefaultLanguage>
-    <AppxPackageSigningEnabled>true</AppxPackageSigningEnabled>
-    <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
+    <!-- Local/CI StoreUpload packages are unsigned; Microsoft re-signs Store submissions. -->
+    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
     <AppxAutoIncrementPackageRevision>False</AppxAutoIncrementPackageRevision>
     <EntryPointProjectUniqueName>..\ClipShot.App\ClipShot.App.csproj</EntryPointProjectUniqueName>
     <GenerateTestArtifacts>True</GenerateTestArtifacts>
-    <!-- Temporary packaging cert only. Microsoft re-signs Store submissions. -->
-    <PackageCertificateKeyFile>ClipShot.Package_TemporaryKey.pfx</PackageCertificateKeyFile>
-    <PackageCertificatePassword>ClipShotTempPackaging</PackageCertificatePassword>
+    <AppxBundlePlatforms>x64</AppxBundlePlatforms>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <AppxBundle>Always</AppxBundle>
@@ -51,7 +49,6 @@
     <Content Include="Images\WideTile.png" />
     <Content Include="Images\LargeTile.png" />
     <Content Include="Images\SplashScreen.png" />
-    <None Include="ClipShot.Package_TemporaryKey.pfx" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ClipShot.App\ClipShot.App.csproj">
