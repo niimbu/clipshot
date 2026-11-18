@@ -1,6 +1,8 @@
 using System.Linq;
 using System.Windows;
 using ClipShot.Services;
+using Windows.ApplicationModel;
+using Windows.ApplicationModel.Activation;
 
 namespace ClipShot;
 
@@ -16,8 +18,24 @@ public partial class App : System.Windows.Application
         // Stay alive when the main window is hidden to the tray. Exit only via tray → Exit
         // or Application.Shutdown().
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        StartMinimizedToTray = e.Args.Any(IsAutostartArgument);
+        StartMinimizedToTray = e.Args.Any(IsAutostartArgument) || WasStartedByStartupTask();
         base.OnStartup(e);
+    }
+
+    private static bool WasStartedByStartupTask()
+    {
+        if (!PackageEnvironment.IsPackaged)
+            return false;
+
+        try
+        {
+            var args = AppInstance.GetActivatedEventArgs();
+            return args?.Kind == ActivationKind.StartupTask;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool IsAutostartArgument(string argument) =>

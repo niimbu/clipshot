@@ -69,8 +69,11 @@ Prefer the PowerShell installer in [DISTRIBUTION.md](DISTRIBUTION.md). Report fa
 
 Keep `<Version>` in `src/ClipShot.App/ClipShot.App.csproj` identical to the Git tag (without the leading `v`).
 
+When shipping a Store build, also set `Identity Version` in `src/ClipShot.Package/Package.appxmanifest` to `major.minor.patch.0` (for example `1.0.15` → `1.0.15.0`). See [MICROSOFT_STORE.md](MICROSOFT_STORE.md).
+
 ## Release assets
 
 - `ClipShot.exe` — Windows executable
 - `ClipShot.zip` — portable package
 - `SHA256SUMS.txt` — SHA-256 hashes
+- `ClipShot-Store` CI artifact — MSIX / AppxUpload for Partner Center (when packaging succeeds)

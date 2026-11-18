@@ -43,12 +43,49 @@ jobs:
             choco install imagemagick --no-progress --yes
           }
           ./assets/branding/build-branding.ps1
+          ./assets/branding/build-store-assets.ps1
 
       - name: Build
         run: dotnet build ClipShot.slnx --configuration Release
 
       - name: Publish self-contained Windows app
         run: dotnet publish src/ClipShot.App/ClipShot.App.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false --output publish/win-x64
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Microsoft Store package (MSIX)
+        id: msix
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $outDir = Join-Path $PWD "artifacts/msix"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          msbuild src\ClipShot.Package\ClipShot.Package.wapproj `
+            /restore `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:UapAppxPackageBuildMode=StoreUpload `
+            /p:AppxBundle=Always `
+            /p:AppxPackageDir="$outDir\\" `
+            /p:AppxPackageSigningEnabled=true
+          $packages = Get-ChildItem -Path $outDir -Recurse -Include *.msix,*.msixbundle,*.appxupload,*.appxbundle -ErrorAction SilentlyContinue
+          if (-not $packages) {
+            throw "MSIX packaging produced no package files under artifacts/msix."
+          }
+          $packages | ForEach-Object { Write-Host "Packaged: $($_.FullName)" }
+
+      - name: Upload Microsoft Store package
+        if: steps.msix.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipShot-Store
+          path: artifacts/msix/**
+          if-no-files-found: error
+
+      - name: Warn when Store packaging fails
+        if: steps.msix.outcome == 'failure'
+        run: echo "::warning::MSIX packaging failed. GitHub release assets are unaffected. See docs/MICROSOFT_STORE.md."
 
       - name: Check SignPath configuration
         id: signpath-check

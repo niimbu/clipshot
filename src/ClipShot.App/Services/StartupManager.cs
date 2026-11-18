@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using Windows.ApplicationModel;
 
 namespace ClipShot.Services;
 
@@ -6,10 +7,14 @@ internal static class StartupManager
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "ClipShot";
+    private const string StartupTaskId = "ClipShotStartup";
     public const string AutostartArgument = "--autostart";
 
     public static bool IsEnabled()
     {
+        if (PackageEnvironment.IsPackaged)
+            return IsStartupTaskEnabled();
+
         using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
         var configuredCommand = key?.GetValue(ValueName) as string;
         return LooksLikeOurStartupEntry(configuredCommand);
@@ -17,6 +22,12 @@ internal static class StartupManager
 
     public static void SetEnabled(bool enabled)
     {
+        if (PackageEnvironment.IsPackaged)
+        {
+            SetStartupTaskEnabled(enabled);
+            return;
+        }
+
         using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true)
             ?? throw new InvalidOperationException("Couldn't access the current user's Windows startup settings.");
 
@@ -28,12 +39,50 @@ internal static class StartupManager
 
     /// <summary>
     /// Rewrites the Run key to the current command (includes --autostart) when ClipShot
-    /// is already configured to start with Windows.
+    /// is already configured to start with Windows. No-op for packaged Store installs.
     /// </summary>
     public static void EnsureCurrentCommand()
     {
+        if (PackageEnvironment.IsPackaged)
+            return;
+
         if (IsEnabled())
             SetEnabled(true);
+    }
+
+    private static bool IsStartupTaskEnabled()
+    {
+        var task = StartupTask.GetAsync(StartupTaskId).AsTask().GetAwaiter().GetResult();
+        return task.State is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
+    }
+
+    private static void SetStartupTaskEnabled(bool enabled)
+    {
+        var task = StartupTask.GetAsync(StartupTaskId).AsTask().GetAwaiter().GetResult();
+        if (enabled)
+        {
+            switch (task.State)
+            {
+                case StartupTaskState.Disabled:
+                    var result = task.RequestEnableAsync().AsTask().GetAwaiter().GetResult();
+                    if (result is StartupTaskState.DisabledByUser)
+                    {
+                        throw new InvalidOperationException(
+                            "Windows blocked enabling ClipShot at startup. Turn it on in Settings → Apps → Startup.");
+                    }
+                    break;
+                case StartupTaskState.DisabledByUser:
+                    throw new InvalidOperationException(
+                        "ClipShot startup was turned off in Windows Settings. Enable it under Settings → Apps → Startup.");
+                case StartupTaskState.Enabled:
+                case StartupTaskState.EnabledByPolicy:
+                    break;
+            }
+        }
+        else if (task.State is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy)
+        {
+            task.Disable();
+        }
     }
 
     private static string GetStartupCommand()
