@@ -131,11 +131,11 @@
                         </Border>
                         <Button Content="Save PNG" HorizontalAlignment="Right" VerticalAlignment="Center"
                                 Style="{StaticResource QuietButton}" Click="SaveScreen_Click"
-                                ToolTip="Save the full screen as a PNG file"
+                                ToolTip="Save every display as a PNG file"
                                 AutomationProperties.Name="Save screen as PNG"/>
                     </Grid>
                     <TextBlock Grid.Row="1" Text="Full screen" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource InkBrush}" Margin="0,14,0,0"/>
-                    <TextBlock Grid.Row="2" Text="Grab the primary display, then annotate, copy, or save." TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0" LineHeight="18" MinHeight="36"/>
+                    <TextBlock Grid.Row="2" Text="Grab every display, then annotate, copy, or save." TextWrapping="Wrap" FontSize="12.5" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0" LineHeight="18" MinHeight="36"/>
                     <Button Grid.Row="3" Margin="0,16,0,0" Click="CaptureScreen_Click" Style="{StaticResource PrimaryButton}" AutomationProperties.Name="Capture screen">
                         <DockPanel LastChildFill="True">
                             <TextBlock x:Name="ScreenHotkeyHint" DockPanel.Dock="Right" Opacity="0.62" FontWeight="Normal" VerticalAlignment="Center" Margin="12,0,0,0" MaxWidth="130" TextTrimming="CharacterEllipsis"/>

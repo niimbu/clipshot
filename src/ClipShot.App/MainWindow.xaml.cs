@@ -390,8 +390,8 @@ public partial class MainWindow : Window
     {
         try
         {
-            var bitmap = _captureService.CapturePrimaryScreen();
-            OpenScreenshotEditor(bitmap);
+            var desktop = _captureService.CaptureDesktop();
+            OpenScreenshotEditor(desktop.Image, desktop.Bounds);
         }
         catch (Exception ex)
         {
@@ -410,8 +410,8 @@ public partial class MainWindow : Window
         var keepPreviousAppFocused = false;
         try
         {
-            var bitmap = _captureService.CapturePrimaryScreen();
-            keepPreviousAppFocused = OpenScreenshotEditor(bitmap);
+            var desktop = _captureService.CaptureDesktop();
+            keepPreviousAppFocused = OpenScreenshotEditor(desktop.Image, desktop.Bounds);
         }
         catch (Exception ex)
         {
@@ -428,15 +428,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private bool OpenScreenshotEditor(BitmapSource bitmap) =>
-        OpenScreenshotEditor(bitmap, fullScreenshot: null, regionBounds: null, dimOpacity: _activeSettings.RegionDimOpacity);
+    private bool OpenScreenshotEditor(BitmapSource bitmap, System.Drawing.Rectangle? cover = null) =>
+        ShowEditor(new ScreenshotEditorWindow(bitmap, cover), bitmap);
 
     /// <returns>True when the user copied or saved — callers should not steal focus back.</returns>
-    private bool OpenScreenshotEditor(BitmapSource bitmap, BitmapSource? fullScreenshot, Rect? regionBounds, double dimOpacity)
+    private bool OpenScreenshotEditor(BitmapSource bitmap, BitmapSource fullScreenshot, NormalizedRect fractions, double dimOpacity, System.Drawing.Rectangle cover) =>
+        ShowEditor(new ScreenshotEditorWindow(bitmap, fullScreenshot, fractions, dimOpacity, cover), bitmap);
+
+    private bool ShowEditor(ScreenshotEditorWindow editor, BitmapSource bitmap)
     {
-        var editor = fullScreenshot is not null && regionBounds is { Width: > 0, Height: > 0 } bounds
-            ? new ScreenshotEditorWindow(bitmap, fullScreenshot, bounds, dimOpacity)
-            : new ScreenshotEditorWindow(bitmap);
         editor.ShowDialog();
         StatusText.Text = editor.WasCopied
             ? $"Copied screenshot  ·  {bitmap.PixelWidth} × {bitmap.PixelHeight}"
@@ -450,7 +450,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var bitmap = _captureService.CapturePrimaryScreen();
+            var bitmap = _captureService.CaptureDesktop().Image;
             var dialog = new SaveFileDialog
             {
                 Title = "Save screenshot",
@@ -492,11 +492,14 @@ public partial class MainWindow : Window
         var keepPreviousAppFocused = false;
         try
         {
-            var screenshot = _captureService.CapturePrimaryScreen();
-            var selector = new RegionSelectionWindow(screenshot, _activeSettings.RegionDimOpacity);
-            var selected = selector.ShowDialog();
-            if (selected == true && selector.SelectedImage is { } region)
-                keepPreviousAppFocused = OpenScreenshotEditor(region, selector.FullScreenshot, selector.SelectionBounds, _activeSettings.RegionDimOpacity);
+            var desktop = _captureService.CaptureDesktop();
+            var session = new RegionCaptureSession(desktop, _activeSettings.RegionDimOpacity);
+            if (session.TrySelect(out var pick) && pick is not null)
+            {
+                keepPreviousAppFocused = pick.InPlace && pick.Background is not null
+                    ? OpenScreenshotEditor(pick.Image, pick.Background, pick.Fractions, _activeSettings.RegionDimOpacity, pick.Cover)
+                    : OpenScreenshotEditor(pick.Image, pick.Cover);
+            }
             else
                 StatusText.Text = "Region capture cancelled";
         }

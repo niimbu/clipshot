@@ -9,10 +9,10 @@
 - Select tool: move annotations; endpoint grips for lines/arrows; box rescale for shapes and effects
 - Undo / redo, Start with Windows, region dim opacity, in-app update check
 - CI builds and GitHub Releases (self-contained Windows x64)
+- Capture every connected display, including region selection on a secondary monitor
 
 ## Next
 
-- Capture all displays
 - Recent captures and output folder setting
 - Pin screenshot above other windows
 - Accessibility polish

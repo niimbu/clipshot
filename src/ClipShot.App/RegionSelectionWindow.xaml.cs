@@ -4,39 +4,39 @@ using System.Windows.Input;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using ClipShot.Services;
 using Point = System.Windows.Point;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
-using Color = System.Windows.Media.Color;
 using Brushes = System.Windows.Media.Brushes;
+using DrawingPoint = System.Drawing.Point;
+using DrawingRectangle = System.Drawing.Rectangle;
+using Screen = System.Windows.Forms.Screen;
 
 namespace ClipShot;
 
 public partial class RegionSelectionWindow : Window
 {
-    private readonly BitmapSource _screenshot;
+    private readonly RegionCaptureSession _session;
+    private readonly Screen _screen;
     private readonly double _dimOpacity;
-    private Point _startPoint;
     private bool _isSelecting;
-    private Rect? _selectionBounds;
+    private Rect? _hole;
+    private DrawingRectangle? _selection;
 
-    public BitmapSource FullScreenshot => _screenshot;
-    public BitmapSource? SelectedImage { get; private set; }
-    public Rect SelectionBounds { get; private set; }
-    public Int32Rect SelectionPixels { get; private set; }
-
-    public RegionSelectionWindow(BitmapSource screenshot, double dimOpacity = 0.45)
+    internal RegionSelectionWindow(RegionCaptureSession session, Screen screen, BitmapSource screenshot, double dimOpacity = 0.45)
     {
         InitializeComponent();
-        _screenshot = screenshot;
+        _session = session;
+        _screen = screen;
         ScreenshotImage.Source = screenshot;
         _dimOpacity = Math.Clamp(dimOpacity, 0, 0.9);
         ApplyDimStyle();
+        DisplayLayout.Attach(this, screen.Bounds);
     }
 
     private void ApplyDimStyle()
     {
-        // Solid black + Opacity is more reliable than baking alpha into the brush.
         DimOverlay.Fill = Brushes.Black;
         DimOverlay.Opacity = _dimOpacity;
     }
@@ -48,10 +48,42 @@ public partial class RegionSelectionWindow : Window
         Focus();
     }
 
-    private void Window_ContentRendered(object? sender, EventArgs e) => RefreshDimOverlay(_selectionBounds);
+    private void Window_ContentRendered(object? sender, EventArgs e) => RefreshDimOverlay(_hole);
 
     private void RootGrid_SizeChanged(object sender, SizeChangedEventArgs e) =>
-        RefreshDimOverlay(_selectionBounds);
+        ShowSelection(_selection);
+
+    internal void ShowSelection(DrawingRectangle? virtualPixels)
+    {
+        _selection = virtualPixels;
+        if (virtualPixels is not { } pixels)
+        {
+            SelectionRect.Visibility = Visibility.Collapsed;
+            SizeBadge.Visibility = Visibility.Collapsed;
+            HintBorder.Visibility = Visibility.Visible;
+            RefreshDimOverlay(null);
+            return;
+        }
+
+        HintBorder.Visibility = Visibility.Collapsed;
+        var intersection = DrawingRectangle.Intersect(pixels, _screen.Bounds);
+        if (intersection.Width < 1 || intersection.Height < 1)
+        {
+            SelectionRect.Visibility = Visibility.Collapsed;
+            SizeBadge.Visibility = Visibility.Collapsed;
+            RefreshDimOverlay(null);
+            return;
+        }
+
+        var width = Math.Max(1, ActualWidth);
+        var height = Math.Max(1, ActualHeight);
+        var bounds = new Rect(
+            (intersection.Left - _screen.Bounds.Left) / (double)_screen.Bounds.Width * width,
+            (intersection.Top - _screen.Bounds.Top) / (double)_screen.Bounds.Height * height,
+            intersection.Width / (double)_screen.Bounds.Width * width,
+            intersection.Height / (double)_screen.Bounds.Height * height);
+        UpdateChrome(bounds, pixels.Width, pixels.Height);
+    }
 
     private void RefreshDimOverlay(Rect? hole)
     {
@@ -59,10 +91,11 @@ public partial class RegionSelectionWindow : Window
         var height = Math.Max(RootGrid.ActualHeight, SelectionCanvas.ActualHeight);
         if (width < 1 || height < 1)
         {
-            width = Math.Max(width, SystemParameters.PrimaryScreenWidth);
-            height = Math.Max(height, SystemParameters.PrimaryScreenHeight);
+            width = Math.Max(width, Width > 1 ? Width : _screen.Bounds.Width);
+            height = Math.Max(height, Height > 1 ? Height : _screen.Bounds.Height);
         }
 
+        _hole = hole;
         var geometry = new GeometryGroup { FillRule = FillRule.EvenOdd };
         geometry.Children.Add(new RectangleGeometry(new Rect(0, 0, width, height)));
         if (hole is { Width: > 0, Height: > 0 } selection)
@@ -75,10 +108,9 @@ public partial class RegionSelectionWindow : Window
 
     private void SelectionCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        ResetSelectionVisual();
-        _startPoint = e.GetPosition(SelectionCanvas);
         _isSelecting = true;
         HintBorder.Visibility = Visibility.Collapsed;
+        _session.BeginDrag(ToVirtualPixel(e.GetPosition(SelectionCanvas)));
         SelectionCanvas.CaptureMouse();
         Cursor = Cursors.Cross;
     }
@@ -88,12 +120,7 @@ public partial class RegionSelectionWindow : Window
         if (!_isSelecting)
             return;
 
-        var current = ConstrainSelectionPoint(e.GetPosition(SelectionCanvas));
-        var bounds = Normalize(_startPoint, current);
-        if (bounds.Width < 1 && bounds.Height < 1)
-            return;
-
-        UpdateChrome(bounds);
+        _session.DragMove(ToVirtualPixel(e.GetPosition(SelectionCanvas)), IsSquareModifier());
     }
 
     private void SelectionCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -103,27 +130,11 @@ public partial class RegionSelectionWindow : Window
 
         _isSelecting = false;
         SelectionCanvas.ReleaseMouseCapture();
-
-        var current = ConstrainSelectionPoint(e.GetPosition(SelectionCanvas));
-        var bounds = Normalize(_startPoint, current);
-        if (bounds.Width < 3 || bounds.Height < 3)
-        {
-            ResetSelectionVisual();
-            return;
-        }
-
-        var pixels = ToPixelRect(bounds);
-        var cropped = new CroppedBitmap(_screenshot, pixels);
-        cropped.Freeze();
-        SelectedImage = cropped;
-        SelectionBounds = bounds;
-        SelectionPixels = pixels;
-        DialogResult = true;
+        _session.DragEnd(ToVirtualPixel(e.GetPosition(SelectionCanvas)), IsSquareModifier());
     }
 
-    private void UpdateChrome(Rect bounds)
+    private void UpdateChrome(Rect bounds, int pixelWidth, int pixelHeight)
     {
-        _selectionBounds = bounds;
         RefreshDimOverlay(bounds);
 
         SelectionRect.Visibility = Visibility.Visible;
@@ -132,8 +143,7 @@ public partial class RegionSelectionWindow : Window
         SelectionRect.Width = bounds.Width;
         SelectionRect.Height = bounds.Height;
 
-        var pixels = ToPixelRect(bounds);
-        SizeText.Text = $"{pixels.Width} × {pixels.Height}";
+        SizeText.Text = $"{pixelWidth} × {pixelHeight}";
         SizeBadge.Visibility = Visibility.Visible;
         HintBorder.Visibility = Visibility.Collapsed;
         PositionSizeBadge(bounds);
@@ -155,52 +165,17 @@ public partial class RegionSelectionWindow : Window
         Canvas.SetTop(SizeBadge, badgeTop);
     }
 
-    private void ResetSelectionVisual()
+    private DrawingPoint ToVirtualPixel(Point local)
     {
-        _isSelecting = false;
-        _selectionBounds = null;
-        SelectedImage = null;
-        SelectionBounds = default;
-        SelectionPixels = default;
-        SelectionRect.Visibility = Visibility.Collapsed;
-        SelectionRect.Width = 0;
-        SelectionRect.Height = 0;
-        SizeBadge.Visibility = Visibility.Collapsed;
-        HintBorder.Visibility = Visibility.Visible;
-        RefreshDimOverlay(null);
-        Cursor = Cursors.Cross;
+        var width = Math.Max(1, SelectionCanvas.ActualWidth);
+        var height = Math.Max(1, SelectionCanvas.ActualHeight);
+        var x = _screen.Bounds.Left + local.X / width * _screen.Bounds.Width;
+        var y = _screen.Bounds.Top + local.Y / height * _screen.Bounds.Height;
+        return new DrawingPoint((int)Math.Round(x), (int)Math.Round(y));
     }
 
-    private Int32Rect ToPixelRect(Rect bounds)
-    {
-        var scaleX = _screenshot.PixelWidth / Math.Max(1, SelectionCanvas.ActualWidth);
-        var scaleY = _screenshot.PixelHeight / Math.Max(1, SelectionCanvas.ActualHeight);
-        var x = Math.Clamp((int)Math.Floor(bounds.Left * scaleX), 0, Math.Max(0, _screenshot.PixelWidth - 1));
-        var y = Math.Clamp((int)Math.Floor(bounds.Top * scaleY), 0, Math.Max(0, _screenshot.PixelHeight - 1));
-        var cropWidth = Math.Clamp((int)Math.Ceiling(bounds.Width * scaleX), 1, _screenshot.PixelWidth - x);
-        var cropHeight = Math.Clamp((int)Math.Ceiling(bounds.Height * scaleY), 1, _screenshot.PixelHeight - y);
-        return new Int32Rect(x, y, cropWidth, cropHeight);
-    }
-
-    private Point ConstrainSelectionPoint(Point current)
-    {
-        if ((Keyboard.Modifiers & ModifierKeys.Shift) != ModifierKeys.Shift)
-            return current;
-
-        var dx = current.X - _startPoint.X;
-        var dy = current.Y - _startPoint.Y;
-        var side = Math.Max(Math.Abs(dx), Math.Abs(dy));
-        return new Point(
-            _startPoint.X + Math.Sign(dx == 0 ? 1 : dx) * side,
-            _startPoint.Y + Math.Sign(dy == 0 ? 1 : dy) * side);
-    }
-
-    private static Rect Normalize(Point start, Point current)
-    {
-        var left = Math.Min(start.X, current.X);
-        var top = Math.Min(start.Y, current.Y);
-        return new Rect(left, top, Math.Abs(current.X - start.X), Math.Abs(current.Y - start.Y));
-    }
+    private static bool IsSquareModifier() =>
+        (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
 
     private static double Clamp(double value, double min, double max)
     {
@@ -209,17 +184,15 @@ public partial class RegionSelectionWindow : Window
         return Math.Clamp(value, min, max);
     }
 
-    private void SelectionCanvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        DialogResult = false;
-    }
+    private void SelectionCanvas_MouseRightButtonDown(object sender, MouseButtonEventArgs e) =>
+        _session.Cancel();
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
         if (e.Key == Key.Escape)
         {
-            DialogResult = false;
+            _session.Cancel();
             e.Handled = true;
         }
     }
