@@ -58,6 +58,7 @@ public partial class RegionSelectionWindow : Window
         _selection = virtualPixels;
         if (virtualPixels is not { } pixels)
         {
+            SelectionShade.Visibility = Visibility.Collapsed;
             SelectionRect.Visibility = Visibility.Collapsed;
             SizeBadge.Visibility = Visibility.Collapsed;
             HintBorder.Visibility = Visibility.Visible;
@@ -69,6 +70,7 @@ public partial class RegionSelectionWindow : Window
         var intersection = DrawingRectangle.Intersect(pixels, _screen.Bounds);
         if (intersection.Width < 1 || intersection.Height < 1)
         {
+            SelectionShade.Visibility = Visibility.Collapsed;
             SelectionRect.Visibility = Visibility.Collapsed;
             SizeBadge.Visibility = Visibility.Collapsed;
             RefreshDimOverlay(null);
@@ -136,6 +138,12 @@ public partial class RegionSelectionWindow : Window
     private void UpdateChrome(Rect bounds, int pixelWidth, int pixelHeight)
     {
         RefreshDimOverlay(bounds);
+
+        SelectionShade.Visibility = Visibility.Visible;
+        Canvas.SetLeft(SelectionShade, bounds.Left - 1);
+        Canvas.SetTop(SelectionShade, bounds.Top - 1);
+        SelectionShade.Width = bounds.Width + 2;
+        SelectionShade.Height = bounds.Height + 2;
 
         SelectionRect.Visibility = Visibility.Visible;
         Canvas.SetLeft(SelectionRect, bounds.Left);

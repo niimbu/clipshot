@@ -24,7 +24,7 @@
             <Setter Property="Margin" Value="1"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderThickness" Value="2"/>
             <Setter Property="Foreground" Value="#F2F4F7"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -51,6 +51,7 @@
                 <Trigger Property="Tag" Value="Active">
                     <Setter Property="Background" Value="#F4F5F7"/>
                     <Setter Property="Foreground" Value="#16181D"/>
+                    <Setter Property="BorderBrush" Value="#00AA4F"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -91,8 +92,8 @@
             <Setter Property="StrokeThickness" Value="1.2"/>
         </Style>
         <Style x:Key="ColorSwatchButton" TargetType="Button">
-            <Setter Property="Width" Value="18"/>
-            <Setter Property="Height" Value="18"/>
+            <Setter Property="Width" Value="22"/>
+            <Setter Property="Height" Value="22"/>
             <Setter Property="Margin" Value="2,0"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -100,19 +101,23 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Swatch"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="#66FFFFFF"
-                                BorderThickness="1"
-                                CornerRadius="9"
-                                SnapsToDevicePixels="True"/>
+                        <Border x:Name="Ring"
+                                Padding="2"
+                                CornerRadius="11"
+                                BorderThickness="2"
+                                BorderBrush="Transparent"
+                                Background="Transparent"
+                                SnapsToDevicePixels="True">
+                            <Border x:Name="Swatch"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="7"/>
+                        </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Swatch" Property="BorderBrush" Value="White"/>
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="#99FFFFFF"/>
                             </Trigger>
                             <Trigger Property="Tag" Value="Active">
-                                <Setter TargetName="Swatch" Property="BorderBrush" Value="White"/>
-                                <Setter TargetName="Swatch" Property="BorderThickness" Value="2"/>
+                                <Setter TargetName="Ring" Property="BorderBrush" Value="White"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -122,16 +127,10 @@
         <Style x:Key="ResizeHandle" TargetType="Thumb">
             <Setter Property="Width" Value="10"/>
             <Setter Property="Height" Value="10"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#16181D"/>
-            <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="2"/>
+                        <Ellipse Width="10" Height="10" Fill="White" Stroke="#16181D" StrokeThickness="1"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -144,6 +143,12 @@
             <Image x:Name="FullScreenImage" Stretch="Fill" IsHitTestVisible="False"/>
             <Path x:Name="InPlaceDimOverlay" IsHitTestVisible="False" Fill="Black"/>
             <Canvas x:Name="InPlaceCanvas" Background="Transparent">
+                <Border x:Name="RegionChromeShade"
+                        BorderBrush="#16181D"
+                        BorderThickness="1"
+                        Background="Transparent"
+                        IsHitTestVisible="False"
+                        SnapsToDevicePixels="True"/>
                 <Border x:Name="RegionChrome"
                         BorderBrush="White"
                         BorderThickness="2"
@@ -214,7 +219,24 @@
             <Border.Effect>
                 <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.4" Color="Black"/>
             </Border.Effect>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <DockPanel LastChildFill="True" VerticalAlignment="Center">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Click="Copy_Click" ToolTip="Copy and close (Space — disabled while typing text)" Style="{StaticResource EditorPrimaryToolButton}" AutomationProperties.Name="Copy" Width="Auto" MinWidth="72" Padding="12,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Style="{StaticResource ToolIcon}" Width="14" Height="14" Data="M7,3 H15 V13 H7 Z M5,5 V17 H13"/>
+                            <TextBlock Text="Copy" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Click="Save_Click" ToolTip="Save PNG" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Save PNG">
+                        <Path Style="{StaticResource ToolIcon}" Data="M4,4 H13 L16,7 V16 H4 Z M7,4 V8 H12 M7,12 H13"/>
+                    </Button>
+                    <Button Click="Close_Click" ToolTip="Close (Esc)" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Close editor">
+                        <Path Style="{StaticResource ToolIcon}" Data="M5,5 L15,15 M15,5 L5,15"/>
+                    </Button>
+                </StackPanel>
+                <Border DockPanel.Dock="Right" Style="{StaticResource EditorToolDivider}" Margin="10,0"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="PenButton" Click="Pen_Click" ToolTip="Pen · hold Shift for straight" Style="{StaticResource EditorToolButton}" Tag="Active" AutomationProperties.Name="Pen">
                     <Path Style="{StaticResource ToolIcon}" Data="M4,16 L6,10 L14,2 L18,6 L10,14 Z M14,2 L17,1 L19,3 L18,6"/>
                 </Button>
@@ -277,21 +299,8 @@
                 <Button Click="Redo_Click" ToolTip="Redo (Ctrl+Y)" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Redo">
                     <Path Style="{StaticResource ToolIcon}" Data="M13,8 H16 V5 M16,8 A6,6 0 1 0 15,14"/>
                 </Button>
-                <Border Style="{StaticResource EditorToolDivider}"/>
-                <Button Click="Copy_Click" ToolTip="Copy and close (Space — disabled while typing text)" Style="{StaticResource EditorPrimaryToolButton}" AutomationProperties.Name="Copy" Width="Auto" MinWidth="72" Padding="12,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Path Style="{StaticResource ToolIcon}" Width="14" Height="14" Data="M7,3 H15 V13 H7 Z M5,5 V17 H13"/>
-                        <TextBlock Text="Copy" Margin="8,0,0,0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
-                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                    </StackPanel>
-                </Button>
-                <Button Click="Save_Click" ToolTip="Save PNG" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Save PNG">
-                    <Path Style="{StaticResource ToolIcon}" Data="M4,4 H13 L16,7 V16 H4 Z M7,4 V8 H12 M7,12 H13"/>
-                </Button>
-                <Button Click="Close_Click" ToolTip="Close (Esc)" Style="{StaticResource EditorToolButton}" AutomationProperties.Name="Close editor">
-                    <Path Style="{StaticResource ToolIcon}" Data="M5,5 L15,15 M15,5 L5,15"/>
-                </Button>
-            </StackPanel>
+                </StackPanel>
+            </DockPanel>
         </Border>
     </Grid>
 </Window>

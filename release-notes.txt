@@ -1,4 +1,4 @@
-- A numbered step on top of pixelation stays separate. Erasing the number leaves the pixelation, and undo brings the number back with its digit.
-- Screenshots include every connected display.
-- The update window lists only what changed.
-- ClipShot stays closed after an update.
+- Copy places the screenshot on the clipboard, with marks, instead of a black image.
+- The annotation bar keeps the tools on the left and Copy, Save, and Close on the right.
+- The active tool has a green edge, and the selected color has a white ring.
+- The region outline stays visible on a white window.

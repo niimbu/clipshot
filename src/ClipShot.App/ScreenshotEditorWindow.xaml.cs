@@ -471,22 +471,17 @@ public partial class ScreenshotEditorWindow : Window
 
     private BitmapSource RenderAnnotatedImage()
     {
-        var source = PreviewImage.Source as BitmapSource;
-        var pixelWidth = source?.PixelWidth ?? Math.Max(1, (int)Math.Ceiling(PreviewSurface.Width));
-        var pixelHeight = source?.PixelHeight ?? Math.Max(1, (int)Math.Ceiling(PreviewSurface.Height));
-        var dpiX = source?.DpiX > 0 ? source.DpiX : 96d;
-        var dpiY = source?.DpiY > 0 ? source.DpiY : 96d;
-        // Keep the on-screen coordinate system. The bitmap is often 96 DPI while the
-        // window is scaled, so forcing the surface back to pixel-sized DIPs shifts marks.
-        var dipWidth = PreviewSurface.Width > 1 ? PreviewSurface.Width : pixelWidth * 96d / dpiX;
-        var dipHeight = PreviewSurface.Height > 1 ? PreviewSurface.Height : pixelHeight * 96d / dpiY;
+        if (PreviewImage.Source is not BitmapSource source || source.PixelWidth < 1 || source.PixelHeight < 1)
+            throw new InvalidOperationException("There is no screenshot to copy.");
 
-        // Bake mosaic into the capture first, then draw marks on top so a number
-        // placed on pixelation stays sharp and keeps its digit.
+        var pixelWidth = source.PixelWidth;
+        var pixelHeight = source.PixelHeight;
+        var dpiX = source.DpiX > 0 ? source.DpiX : 96d;
+        var dpiY = source.DpiY > 0 ? source.DpiY : 96d;
+
+        // Draw the captured pixels directly. Rendering the live editor visual copies the
+        // dark window behind it, which is what turned a paste into a black image.
         var effectRegions = CollectEffectRegions().ToArray();
-        var annotations = AnnotationCanvas.Children.OfType<UIElement>()
-            .Where(element => IsMovableAnnotation(element) && !IsEffectAnnotation(element))
-            .ToArray();
         var hidden = new List<(UIElement Element, Visibility Visibility)>();
         void hide(UIElement? element)
         {
@@ -501,51 +496,110 @@ public partial class ScreenshotEditorWindow : Window
             hide(handle);
         foreach (var effect in AnnotationCanvas.Children.OfType<UIElement>().Where(IsEffectAnnotation))
             hide(effect);
-        foreach (var annotation in annotations)
-            hide(annotation);
 
-        var surfaceBackground = PreviewSurface.Background;
+        var canvasBackground = AnnotationCanvas.Background;
         try
         {
-            BitmapSource output = RenderSurface(pixelWidth, pixelHeight, dpiX, dpiY, dipWidth, dipHeight);
+            AnnotationCanvas.Background = Brushes.Transparent;
+            BitmapSource output = DrawCapturedImage(source);
             foreach (var (bounds, block) in effectRegions)
                 output = ApplyMosaicToBitmap(output, bounds, block);
 
-            foreach (var annotation in annotations)
-                annotation.Visibility = Visibility.Visible;
-            hide(PreviewImage);
-            PreviewSurface.Background = Brushes.Transparent;
-            var overlay = RenderSurface(pixelWidth, pixelHeight, dpiX, dpiY, dipWidth, dipHeight);
-
-            var visual = new DrawingVisual();
-            using (var context = visual.RenderOpen())
-            {
-                context.DrawImage(output, new Rect(0, 0, pixelWidth, pixelHeight));
-                context.DrawImage(overlay, new Rect(0, 0, pixelWidth, pixelHeight));
-            }
-
-            var combined = new RenderTargetBitmap(pixelWidth, pixelHeight, dpiX, dpiY, PixelFormats.Pbgra32);
-            combined.Render(visual);
-            combined.Freeze();
-            return combined;
+            var overlay = RenderAnnotationLayer(pixelWidth, pixelHeight, dpiX, dpiY);
+            return CompositeOver(output, overlay);
         }
         finally
         {
-            PreviewSurface.Background = surfaceBackground;
+            AnnotationCanvas.Background = canvasBackground;
             foreach (var (element, visibility) in hidden)
                 element.Visibility = visibility;
         }
     }
 
-    private BitmapSource RenderSurface(int pixelWidth, int pixelHeight, double dpiX, double dpiY, double dipWidth, double dipHeight)
+    private static BitmapSource DrawCapturedImage(BitmapSource source)
     {
-        PreviewSurface.Measure(new Size(dipWidth, dipHeight));
-        PreviewSurface.Arrange(new Rect(0, 0, dipWidth, dipHeight));
-        PreviewSurface.UpdateLayout();
-        var rendered = new RenderTargetBitmap(pixelWidth, pixelHeight, dpiX, dpiY, PixelFormats.Pbgra32);
-        rendered.Render(PreviewSurface);
+        var visual = new DrawingVisual();
+        using (var context = visual.RenderOpen())
+        {
+            context.DrawRectangle(Brushes.White, null, new Rect(0, 0, source.PixelWidth, source.PixelHeight));
+            context.DrawImage(source, new Rect(0, 0, source.PixelWidth, source.PixelHeight));
+        }
+
+        var rendered = new RenderTargetBitmap(source.PixelWidth, source.PixelHeight, source.DpiX, source.DpiY, PixelFormats.Pbgra32);
+        rendered.Render(visual);
         rendered.Freeze();
         return rendered;
+    }
+
+    private BitmapSource RenderAnnotationLayer(int pixelWidth, int pixelHeight, double dpiX, double dpiY)
+    {
+        var dipWidth = AnnotationCanvas.Width > 1 ? AnnotationCanvas.Width : pixelWidth;
+        var dipHeight = AnnotationCanvas.Height > 1 ? AnnotationCanvas.Height : pixelHeight;
+        AnnotationCanvas.Measure(new Size(dipWidth, dipHeight));
+        AnnotationCanvas.Arrange(new Rect(0, 0, dipWidth, dipHeight));
+        AnnotationCanvas.UpdateLayout();
+
+        var brush = new VisualBrush(AnnotationCanvas)
+        {
+            Stretch = Stretch.Fill,
+            AlignmentX = AlignmentX.Left,
+            AlignmentY = AlignmentY.Top,
+            ViewboxUnits = BrushMappingMode.Absolute,
+            Viewbox = new Rect(0, 0, dipWidth, dipHeight)
+        };
+        var visual = new DrawingVisual();
+        using (var context = visual.RenderOpen())
+            context.DrawRectangle(brush, null, new Rect(0, 0, pixelWidth, pixelHeight));
+
+        var rendered = new RenderTargetBitmap(pixelWidth, pixelHeight, dpiX, dpiY, PixelFormats.Pbgra32);
+        rendered.Render(visual);
+        rendered.Freeze();
+        return rendered;
+    }
+
+    private static BitmapSource CompositeOver(BitmapSource baseImage, BitmapSource overlay)
+    {
+        var width = baseImage.PixelWidth;
+        var height = baseImage.PixelHeight;
+        var dpiX = baseImage.DpiX > 0 ? baseImage.DpiX : 96d;
+        var dpiY = baseImage.DpiY > 0 ? baseImage.DpiY : 96d;
+        var bottom = new FormatConvertedBitmap(baseImage, PixelFormats.Bgra32, null, 0);
+        var top = new FormatConvertedBitmap(overlay, PixelFormats.Pbgra32, null, 0);
+        var stride = width * 4;
+        var pixels = new byte[stride * height];
+        var marks = new byte[stride * height];
+        bottom.CopyPixels(pixels, stride, 0);
+        top.CopyPixels(marks, stride, 0);
+
+        for (var i = 0; i < pixels.Length; i += 4)
+        {
+            var alpha = marks[i + 3];
+            if (alpha <= 0)
+            {
+                pixels[i + 3] = 255;
+                continue;
+            }
+
+            if (alpha >= 255)
+            {
+                pixels[i] = marks[i];
+                pixels[i + 1] = marks[i + 1];
+                pixels[i + 2] = marks[i + 2];
+                pixels[i + 3] = 255;
+                continue;
+            }
+
+            var inverse = 255 - alpha;
+            pixels[i] = (byte)(marks[i] + pixels[i] * inverse / 255);
+            pixels[i + 1] = (byte)(marks[i + 1] + pixels[i + 1] * inverse / 255);
+            pixels[i + 2] = (byte)(marks[i + 2] + pixels[i + 2] * inverse / 255);
+            pixels[i + 3] = 255;
+        }
+
+        var result = new WriteableBitmap(width, height, dpiX, dpiY, PixelFormats.Bgra32, null);
+        result.WritePixels(new Int32Rect(0, 0, width, height), pixels, stride, 0);
+        result.Freeze();
+        return result;
     }
 
     private void SaveUndoPoint() => SaveUndoPointFrom(CaptureAnnotationSnapshot());
@@ -2234,6 +2288,24 @@ public partial class ScreenshotEditorWindow : Window
         return rendered;
     }
 
+    private static void CopyBitmapToClipboard(BitmapSource image)
+    {
+        var frame = BitmapFrame.Create(image);
+        frame.Freeze();
+        using var png = new MemoryStream();
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(frame);
+        encoder.Save(png);
+        png.Position = 0;
+
+        // BitmapSource placed on the Bitmap format pastes as a black rectangle.
+        // PNG plus the image format is what Paint, Word, and browsers read.
+        var data = new System.Windows.DataObject();
+        data.SetImage(frame);
+        data.SetData("PNG", png.ToArray());
+        Clipboard.SetDataObject(data, true);
+    }
+
     private void Copy_Click(object sender, RoutedEventArgs e) => CopyAndClose();
 
     private void CopyAndClose()
@@ -2241,8 +2313,7 @@ public partial class ScreenshotEditorWindow : Window
         CommitInlineText(save: true);
         try
         {
-            var image = RenderAnnotatedImage();
-            Clipboard.SetDataObject(new System.Windows.DataObject(System.Windows.DataFormats.Bitmap, image), true);
+            CopyBitmapToClipboard(RenderAnnotatedImage());
             WasCopied = true;
             Close();
         }
@@ -2302,6 +2373,10 @@ public partial class ScreenshotEditorWindow : Window
 
         _regionBounds = ClampRegionBounds(_regionBounds, hostWidth, hostHeight);
 
+        Canvas.SetLeft(RegionChromeShade, _regionBounds.Left - 1);
+        Canvas.SetTop(RegionChromeShade, _regionBounds.Top - 1);
+        RegionChromeShade.Width = _regionBounds.Width + 2;
+        RegionChromeShade.Height = _regionBounds.Height + 2;
         Canvas.SetLeft(RegionChrome, _regionBounds.Left);
         Canvas.SetTop(RegionChrome, _regionBounds.Top);
         RegionChrome.Width = _regionBounds.Width;

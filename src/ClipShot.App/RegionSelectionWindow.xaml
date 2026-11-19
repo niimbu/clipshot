@@ -26,6 +26,13 @@
                 MouseMove="SelectionCanvas_MouseMove"
                 MouseLeftButtonUp="SelectionCanvas_MouseLeftButtonUp"
                 MouseRightButtonDown="SelectionCanvas_MouseRightButtonDown">
+            <Border x:Name="SelectionShade"
+                    Visibility="Collapsed"
+                    BorderBrush="#16181D"
+                    BorderThickness="1"
+                    CornerRadius="3"
+                    Background="Transparent"
+                    IsHitTestVisible="False"/>
             <Border x:Name="SelectionRect"
                     Visibility="Collapsed"
                     BorderBrush="White"
