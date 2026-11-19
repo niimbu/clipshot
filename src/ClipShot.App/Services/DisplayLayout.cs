@@ -11,6 +11,7 @@ namespace ClipShot.Services;
 /// </summary>
 internal static class DisplayLayout
 {
+    private const int WmNcCalcSize = 0x0083;
     private const int WmWindowPosChanging = 0x0046;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
@@ -34,6 +35,14 @@ internal static class DisplayLayout
             source.AddHook(Hook);
             IntPtr Hook(IntPtr hookHwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
             {
+                if (msg == WmNcCalcSize && wParam != IntPtr.Zero)
+                {
+                    // Borderless windows still keep a thin frame. That frame pushed the
+                    // capture a little above the region the pointer selected.
+                    handled = true;
+                    return IntPtr.Zero;
+                }
+
                 if (msg == WmWindowPosChanging)
                     ForceBounds(lParam, pixels);
                 handled = false;

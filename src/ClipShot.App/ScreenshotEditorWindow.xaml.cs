@@ -49,6 +49,7 @@ public partial class ScreenshotEditorWindow : Window
     private AnnotationSnapshot? _inlineTextUndo;
     private DrawingRectangle? _coverPixels;
     private NormalizedRect? _pendingRegion;
+    private DrawingRectangle? _regionPixels;
     private bool _fittedToHost;
     private UIElement? _selectedElement;
     private Stroke? _selectedStroke;
@@ -2362,17 +2363,11 @@ public partial class ScreenshotEditorWindow : Window
 
         var hostWidth = HostWidth();
         var hostHeight = HostHeight();
-        if (_pendingRegion is { } fractions && ActualWidth > 1 && ActualHeight > 1)
-        {
-            _pendingRegion = null;
-            _regionBounds = new Rect(
-                fractions.Left * hostWidth,
-                fractions.Top * hostHeight,
-                Math.Max(24, fractions.Width * hostWidth),
-                Math.Max(24, fractions.Height * hostHeight));
-        }
-
-        _regionBounds = ClampRegionBounds(_regionBounds, hostWidth, hostHeight);
+        EnsureRegionPixels();
+        if (_regionPixels is { } pixels && TryPhysicalToLocal(pixels, out var local))
+            _regionBounds = local;
+        else
+            _regionBounds = ClampRegionBounds(_regionBounds, hostWidth, hostHeight);
 
         Canvas.SetLeft(RegionChromeShade, _regionBounds.Left - 1);
         Canvas.SetTop(RegionChromeShade, _regionBounds.Top - 1);
@@ -2402,6 +2397,12 @@ public partial class ScreenshotEditorWindow : Window
 
     private void UpdateInPlaceSizeBadgeText()
     {
+        if (_regionPixels is { } region)
+        {
+            InPlaceSizeText.Text = $"{region.Width} × {region.Height}";
+            return;
+        }
+
         if (_fullScreenshot is null)
             return;
 
@@ -2414,7 +2415,26 @@ public partial class ScreenshotEditorWindow : Window
         if (_fullScreenshot is null)
             return;
 
-        var pixels = ToPixelRect(_regionBounds, _fullScreenshot, HostWidth(), HostHeight());
+        Int32Rect pixels;
+        if (_regionPixels is { } region && _coverPixels is { } cover)
+        {
+            var scaleX = _fullScreenshot.PixelWidth / (double)Math.Max(1, cover.Width);
+            var scaleY = _fullScreenshot.PixelHeight / (double)Math.Max(1, cover.Height);
+            var x = (int)Math.Round((region.Left - cover.Left) * scaleX);
+            var y = (int)Math.Round((region.Top - cover.Top) * scaleY);
+            var width = (int)Math.Round(region.Width * scaleX);
+            var height = (int)Math.Round(region.Height * scaleY);
+            x = Math.Clamp(x, 0, Math.Max(0, _fullScreenshot.PixelWidth - 1));
+            y = Math.Clamp(y, 0, Math.Max(0, _fullScreenshot.PixelHeight - 1));
+            width = Math.Clamp(width, 1, _fullScreenshot.PixelWidth - x);
+            height = Math.Clamp(height, 1, _fullScreenshot.PixelHeight - y);
+            pixels = new Int32Rect(x, y, width, height);
+        }
+        else
+        {
+            pixels = ToPixelRect(_regionBounds, _fullScreenshot, HostWidth(), HostHeight());
+        }
+
         if (pixels.Width < 1 || pixels.Height < 1)
             return;
 
@@ -2422,6 +2442,53 @@ public partial class ScreenshotEditorWindow : Window
         cropped.Freeze();
         PreviewImage.Source = cropped;
         InPlaceSizeText.Text = $"{pixels.Width} × {pixels.Height}";
+    }
+
+    private void EnsureRegionPixels()
+    {
+        if (_regionPixels is not null || _pendingRegion is not { } fractions || _coverPixels is not { } cover)
+            return;
+        if (ActualWidth <= 1 || ActualHeight <= 1 || PresentationSource.FromVisual(this) is null)
+            return;
+
+        _pendingRegion = null;
+        _regionPixels = new DrawingRectangle(
+            cover.Left + (int)Math.Round(fractions.Left * cover.Width),
+            cover.Top + (int)Math.Round(fractions.Top * cover.Height),
+            Math.Max(1, (int)Math.Round(fractions.Width * cover.Width)),
+            Math.Max(1, (int)Math.Round(fractions.Height * cover.Height)));
+    }
+
+    private bool TryPhysicalToLocal(DrawingRectangle pixels, out Rect local)
+    {
+        local = Rect.Empty;
+        if (PresentationSource.FromVisual(InPlaceCanvas) is null)
+            return false;
+
+        var topLeft = InPlaceCanvas.PointFromScreen(new Point(pixels.Left, pixels.Top));
+        var bottomRight = InPlaceCanvas.PointFromScreen(new Point(pixels.Right, pixels.Bottom));
+        local = new Rect(topLeft, bottomRight);
+        return local.Width > 1 && local.Height > 1;
+    }
+
+    private DrawingRectangle LocalToPhysical(Rect local)
+    {
+        var cover = _coverPixels ?? DrawingRectangle.Empty;
+        var topLeft = InPlaceCanvas.PointToScreen(new Point(local.Left, local.Top));
+        var bottomRight = InPlaceCanvas.PointToScreen(new Point(local.Right, local.Bottom));
+        var left = (int)Math.Round(Math.Min(topLeft.X, bottomRight.X));
+        var top = (int)Math.Round(Math.Min(topLeft.Y, bottomRight.Y));
+        var right = (int)Math.Round(Math.Max(topLeft.X, bottomRight.X));
+        var bottom = (int)Math.Round(Math.Max(topLeft.Y, bottomRight.Y));
+        if (cover.Width > 0 && cover.Height > 0)
+        {
+            left = Math.Clamp(left, cover.Left, Math.Max(cover.Left, cover.Right - 1));
+            top = Math.Clamp(top, cover.Top, Math.Max(cover.Top, cover.Bottom - 1));
+            right = Math.Clamp(right, left + 1, cover.Right);
+            bottom = Math.Clamp(bottom, top + 1, cover.Bottom);
+        }
+
+        return DrawingRectangle.FromLTRB(left, top, right, bottom);
     }
 
     private void RefreshInPlaceDim(double width, double height)
@@ -2534,6 +2601,8 @@ public partial class ScreenshotEditorWindow : Window
         if (AnnotationCanvas.Strokes.Count > 0 || AnnotationCanvas.Children.Count > 0)
             SaveUndoPoint();
         _regionBounds = ClampRegionBounds(new Rect(left, top, right - left, bottom - top), hostWidth, hostHeight);
+        if (PresentationSource.FromVisual(InPlaceCanvas) is not null)
+            _regionPixels = LocalToPhysical(_regionBounds);
 
         // Resizing replaces the crop; clear annotations so coordinates stay coherent.
         AnnotationCanvas.Strokes.Clear();

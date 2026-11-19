@@ -77,13 +77,23 @@ public partial class RegionSelectionWindow : Window
             return;
         }
 
-        var width = Math.Max(1, ActualWidth);
-        var height = Math.Max(1, ActualHeight);
-        var bounds = new Rect(
-            (intersection.Left - _screen.Bounds.Left) / (double)_screen.Bounds.Width * width,
-            (intersection.Top - _screen.Bounds.Top) / (double)_screen.Bounds.Height * height,
-            intersection.Width / (double)_screen.Bounds.Width * width,
-            intersection.Height / (double)_screen.Bounds.Height * height);
+        Rect bounds;
+        if (TryToLocal(new DrawingPoint(intersection.Left, intersection.Top), out var topLeft) &&
+            TryToLocal(new DrawingPoint(intersection.Right, intersection.Bottom), out var bottomRight))
+        {
+            bounds = new Rect(topLeft, bottomRight);
+        }
+        else
+        {
+            var width = Math.Max(1, ActualWidth);
+            var height = Math.Max(1, ActualHeight);
+            bounds = new Rect(
+                (intersection.Left - _screen.Bounds.Left) / (double)_screen.Bounds.Width * width,
+                (intersection.Top - _screen.Bounds.Top) / (double)_screen.Bounds.Height * height,
+                intersection.Width / (double)_screen.Bounds.Width * width,
+                intersection.Height / (double)_screen.Bounds.Height * height);
+        }
+
         UpdateChrome(bounds, pixels.Width, pixels.Height);
     }
 
@@ -175,11 +185,27 @@ public partial class RegionSelectionWindow : Window
 
     private DrawingPoint ToVirtualPixel(Point local)
     {
+        if (PresentationSource.FromVisual(SelectionCanvas) is not null)
+        {
+            var screen = SelectionCanvas.PointToScreen(local);
+            return new DrawingPoint((int)Math.Round(screen.X), (int)Math.Round(screen.Y));
+        }
+
         var width = Math.Max(1, SelectionCanvas.ActualWidth);
         var height = Math.Max(1, SelectionCanvas.ActualHeight);
         var x = _screen.Bounds.Left + local.X / width * _screen.Bounds.Width;
         var y = _screen.Bounds.Top + local.Y / height * _screen.Bounds.Height;
         return new DrawingPoint((int)Math.Round(x), (int)Math.Round(y));
+    }
+
+    private bool TryToLocal(DrawingPoint pixel, out Point local)
+    {
+        local = default;
+        if (PresentationSource.FromVisual(SelectionCanvas) is null)
+            return false;
+
+        local = SelectionCanvas.PointFromScreen(new Point(pixel.X, pixel.Y));
+        return true;
     }
 
     private static bool IsSquareModifier() =>

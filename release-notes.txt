@@ -1,1 +1,1 @@
-- Annotation tools stay on screen after a capture and can be used again.
+- A region capture stays on the area you selected, instead of shifting up.
