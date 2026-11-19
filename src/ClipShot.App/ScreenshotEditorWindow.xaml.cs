@@ -265,6 +265,7 @@ public partial class ScreenshotEditorWindow : Window
         };
         ApplyDrawingAttributes();
         UpdateActiveToolButton();
+        AnnotationCanvas?.Focus();
     }
 
     private void ApplyDrawingAttributes()

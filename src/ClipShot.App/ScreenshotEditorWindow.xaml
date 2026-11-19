@@ -22,11 +22,12 @@
             <Setter Property="MinWidth" Value="36"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="1"/>
-            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Background" Value="#18FFFFFF"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="2"/>
             <Setter Property="Foreground" Value="#F2F4F7"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -97,6 +98,7 @@
             <Setter Property="Margin" Value="2,0"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -194,9 +196,10 @@
                         <DropShadowEffect BlurRadius="28" ShadowDepth="0" Opacity="0.45" Color="Black"/>
                     </Border.Effect>
                     <Grid x:Name="PreviewSurface" Background="White" HorizontalAlignment="Left" VerticalAlignment="Top">
-                        <Image x:Name="PreviewImage" Stretch="Fill" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                        <Image x:Name="PreviewImage" Stretch="Fill" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False"/>
                         <InkCanvas x:Name="AnnotationCanvas"
                                    Background="Transparent"
+                                   IsHitTestVisible="True"
                                    EditingMode="Ink"
                                    PreviewMouseLeftButtonDown="AnnotationCanvas_MouseLeftButtonDown"
                                    PreviewMouseMove="AnnotationCanvas_MouseMove"
@@ -208,17 +211,15 @@
             </Grid>
         </ScrollViewer>
 
-        <Border HorizontalAlignment="Center"
+        <Border Panel.ZIndex="100"
+                HorizontalAlignment="Stretch"
                 VerticalAlignment="Bottom"
-                Margin="0,0,0,28"
+                Margin="16,0,16,16"
                 Background="#F216181D"
                 BorderBrush="#33FFFFFF"
                 BorderThickness="1"
                 CornerRadius="16"
                 Padding="8,6">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.4" Color="Black"/>
-            </Border.Effect>
             <DockPanel LastChildFill="True" VerticalAlignment="Center">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Click="Copy_Click" ToolTip="Copy and close (Space — disabled while typing text)" Style="{StaticResource EditorPrimaryToolButton}" AutomationProperties.Name="Copy" Width="Auto" MinWidth="72" Padding="12,0">
@@ -236,6 +237,11 @@
                     </Button>
                 </StackPanel>
                 <Border DockPanel.Dock="Right" Style="{StaticResource EditorToolDivider}" Margin="10,0"/>
+                <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled"
+                              Focusable="False"
+                              VerticalAlignment="Center"
+                              Background="Transparent">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="PenButton" Click="Pen_Click" ToolTip="Pen · hold Shift for straight" Style="{StaticResource EditorToolButton}" Tag="Active" AutomationProperties.Name="Pen">
                     <Path Style="{StaticResource ToolIcon}" Data="M4,16 L6,10 L14,2 L18,6 L10,14 Z M14,2 L17,1 L19,3 L18,6"/>
@@ -300,6 +306,7 @@
                     <Path Style="{StaticResource ToolIcon}" Data="M13,8 H16 V5 M16,8 A6,6 0 1 0 15,14"/>
                 </Button>
                 </StackPanel>
+                </ScrollViewer>
             </DockPanel>
         </Border>
     </Grid>

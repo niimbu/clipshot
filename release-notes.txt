@@ -1,1 +1,1 @@
-- A copied screenshot pastes into other apps as a normal picture.
+- Annotation tools stay on screen after a capture and can be used again.
