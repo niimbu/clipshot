@@ -2290,20 +2290,20 @@ public partial class ScreenshotEditorWindow : Window
 
     private static void CopyBitmapToClipboard(BitmapSource image)
     {
-        var frame = BitmapFrame.Create(image);
-        frame.Freeze();
-        using var png = new MemoryStream();
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(frame);
-        encoder.Save(png);
-        png.Position = 0;
+        // A custom PNG block makes other apps reject the paste ("format is not possible").
+        // A 24-bit picture is the format Paint, Word, and browsers accept.
+        var opaque = new FormatConvertedBitmap(image, PixelFormats.Bgr24, null, 0);
+        var encoder = new BmpBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(opaque));
+        using var stream = new MemoryStream();
+        encoder.Save(stream);
+        stream.Position = 0;
 
-        // BitmapSource placed on the Bitmap format pastes as a black rectangle.
-        // PNG plus the image format is what Paint, Word, and browsers read.
-        var data = new System.Windows.DataObject();
-        data.SetImage(frame);
-        data.SetData("PNG", png.ToArray());
-        Clipboard.SetDataObject(data, true);
+        using var loaded = new System.Drawing.Bitmap(stream);
+        using var bitmap = loaded.Clone(
+            new System.Drawing.Rectangle(0, 0, loaded.Width, loaded.Height),
+            System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+        System.Windows.Forms.Clipboard.SetImage(bitmap);
     }
 
     private void Copy_Click(object sender, RoutedEventArgs e) => CopyAndClose();

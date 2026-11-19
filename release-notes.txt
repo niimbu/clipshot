@@ -1,4 +1,1 @@
-- Copy places the screenshot on the clipboard, with marks, instead of a black image.
-- The annotation bar keeps the tools on the left and Copy, Save, and Close on the right.
-- The active tool has a green edge, and the selected color has a white ring.
-- The region outline stays visible on a white window.
+- A copied screenshot pastes into other apps as a normal picture.
