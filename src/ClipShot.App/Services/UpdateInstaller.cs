@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 
@@ -8,7 +9,7 @@ internal static class UpdateInstaller
 {
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromMinutes(3) };
 
-    public static async Task DownloadAndRestartAsync(
+    public static async Task DownloadAndInstallAsync(
         Uri downloadUri,
         IProgress<double>? progress = null,
         CancellationToken cancellationToken = default)
@@ -59,7 +60,12 @@ internal static class UpdateInstaller
             "while (Get-Process -Id $processId -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 400 }\n" +
             "Move-Item -LiteralPath " + Quote(staged) + " -Destination " + Quote(executable) + " -Force\n" +
             "try { Unblock-File -LiteralPath " + Quote(executable) + " -ErrorAction SilentlyContinue } catch {}\n" +
-            "Start-Process -FilePath " + Quote(executable) + "\n" +
+            "try {\n" +
+            "  $settingsDir = Join-Path $env:APPDATA 'ClipShot'\n" +
+            "  New-Item -ItemType Directory -Force -Path $settingsDir | Out-Null\n" +
+            "  $ticks = (Get-Item -LiteralPath " + Quote(executable) + ").LastWriteTimeUtc.Ticks\n" +
+            "  Set-Content -LiteralPath (Join-Path $settingsDir 'last-install') -Value $ticks -Encoding ascii\n" +
+            "} catch {}\n" +
             "Remove-Item -LiteralPath $PSCommandPath -Force\n";
         await File.WriteAllTextAsync(scriptPath, script, new System.Text.UTF8Encoding(false), cancellationToken);
         var updaterProcess = Process.Start(new ProcessStartInfo
@@ -71,5 +77,57 @@ internal static class UpdateInstaller
         });
         if (updaterProcess is null)
             throw new InvalidOperationException("Windows could not start the update helper.");
+    }
+
+    /// <summary>
+    /// Older installers start ClipShot again after replacing the exe. Close that launch.
+    /// A matching last-install stamp means this start was requested, so leave it open.
+    /// </summary>
+    public static bool ShouldCloseUpdateRelaunch()
+    {
+        try
+        {
+            var executable = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(executable) || !File.Exists(executable))
+                return false;
+
+            var written = File.GetLastWriteTimeUtc(executable);
+            var age = DateTime.UtcNow - written;
+            if (age < TimeSpan.Zero || age > TimeSpan.FromMinutes(2))
+                return false;
+
+            var settingsDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "ClipShot");
+            var installDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Programs",
+                "ClipShot");
+            var installedCopy = string.Equals(
+                Path.GetFullPath(Path.GetDirectoryName(executable) ?? ""),
+                Path.GetFullPath(installDirectory),
+                StringComparison.OrdinalIgnoreCase);
+            var hasSettings = File.Exists(Path.Combine(settingsDirectory, "settings.json"));
+            if (!installedCopy && !hasSettings)
+                return false;
+
+            Directory.CreateDirectory(settingsDirectory);
+            var markerPath = Path.Combine(settingsDirectory, "last-install");
+            var stamp = written.Ticks.ToString(CultureInfo.InvariantCulture);
+            if (File.Exists(markerPath) &&
+                long.TryParse(File.ReadAllText(markerPath).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var markedTicks))
+            {
+                var marked = new DateTime(markedTicks, DateTimeKind.Utc);
+                if ((marked - written).Duration() <= TimeSpan.FromSeconds(2))
+                    return false;
+            }
+
+            File.WriteAllText(markerPath, stamp);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

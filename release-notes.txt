@@ -1,0 +1,4 @@
+- A numbered step on top of pixelation stays separate. Erasing the number leaves the pixelation, and undo brings the number back with its digit.
+- Screenshots include every connected display.
+- The update window lists only what changed.
+- ClipShot stays closed after an update.

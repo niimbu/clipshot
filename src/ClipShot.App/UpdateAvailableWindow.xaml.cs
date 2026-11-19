@@ -59,7 +59,7 @@ public partial class UpdateAvailableWindow : Window
         _isUpdating = true;
         _downloadCts = new CancellationTokenSource();
         SetBusyState(true, "Downloading…");
-        StatusText.Text = "Downloading the update. ClipShot will restart when it is ready.";
+        StatusText.Text = "Downloading the update. ClipShot will close when it is installed.";
 
         var progress = new Progress<double>(value =>
         {
@@ -79,9 +79,9 @@ public partial class UpdateAvailableWindow : Window
 
         try
         {
-            await UpdateInstaller.DownloadAndRestartAsync(_release.ExecutableUrl, progress, _downloadCts.Token);
-            BusyLabel.Text = "Restarting…";
-            StatusText.Text = "Update ready. ClipShot is restarting.";
+            await UpdateInstaller.DownloadAndInstallAsync(_release.ExecutableUrl, progress, _downloadCts.Token);
+            BusyLabel.Text = "Closing…";
+            StatusText.Text = "Update installed. ClipShot is closing.";
             await Task.Delay(400);
             System.Windows.Application.Current.Shutdown();
         }

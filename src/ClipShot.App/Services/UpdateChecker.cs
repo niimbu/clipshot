@@ -72,11 +72,17 @@ internal static class UpdateChecker
         var text = markdown.Replace("\r\n", "\n").Trim();
         // Drop the auto-generated "Full Changelog" footer — the in-app notes are enough.
         text = Regex.Replace(text, @"\n*\*\*Full Changelog\*\*:.*$", "", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        text = Regex.Replace(text, @"^co-authored-by:.*$", "", RegexOptions.IgnoreCase | RegexOptions.Multiline);
         text = Regex.Replace(text, @"^#+\s*", "", RegexOptions.Multiline);
+        text = Regex.Replace(text, @"^what'?s changed\s*$", "", RegexOptions.IgnoreCase | RegexOptions.Multiline);
         text = Regex.Replace(text, @"\*\*(.+?)\*\*", "$1");
         text = Regex.Replace(text, @"__(.+?)__", "$1");
+        // Keep the change itself. Drop who pushed it and the pull-request link.
+        text = Regex.Replace(text, @"\s+by\s+@[\w.-]+", "", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"\s+in\s+(https?://\S+|#\d+)\s*$", "", RegexOptions.IgnoreCase | RegexOptions.Multiline);
         text = Regex.Replace(text, @"\[([^\]]+)\]\(([^)]+)\)", "$1");
         text = Regex.Replace(text, @"^[-*]\s+", "• ", RegexOptions.Multiline);
+        text = Regex.Replace(text, @"[ \t]+\n", "\n");
         text = Regex.Replace(text, @"\n{3,}", "\n\n");
 
         var cleaned = text.Trim();
