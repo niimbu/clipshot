@@ -10,6 +10,7 @@ using System.Windows.Input;
 using Point = System.Windows.Point;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Brushes = System.Windows.Media.Brushes;
+using Brush = System.Windows.Media.Brush;
 using Color = System.Windows.Media.Color;
 using Size = System.Windows.Size;
 using Rectangle = System.Windows.Shapes.Rectangle;
