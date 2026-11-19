@@ -119,8 +119,8 @@ public partial class ScreenshotEditorWindow : Window
             var formatted = new FormattedText(
                 Text,
                 System.Globalization.CultureInfo.CurrentCulture,
-                FlowDirection.LeftToRight,
-                new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
+                System.Windows.FlowDirection.LeftToRight,
+                new Typeface(new System.Windows.Media.FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
                 Math.Max(11, Math.Min(width, height) * 0.46),
                 Brushes.White,
                 pixelsPerDip);

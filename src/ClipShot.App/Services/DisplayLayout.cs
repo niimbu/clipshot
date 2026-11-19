@@ -31,13 +31,14 @@ internal static class DisplayLayout
 
         if (HwndSource.FromHwnd(hwnd) is { } source)
         {
-            source.AddHook((_, msg, _, lParam, ref bool handled) =>
+            source.AddHook(Hook);
+            IntPtr Hook(IntPtr hookHwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
             {
                 if (msg == WmWindowPosChanging)
                     ForceBounds(lParam, pixels);
                 handled = false;
                 return IntPtr.Zero;
-            });
+            }
         }
 
         var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(window);
