@@ -23,7 +23,14 @@ public partial class App : System.Windows.Application
         // or Application.Shutdown().
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         StartMinimizedToTray = e.Args.Any(IsAutostartArgument);
+        // StartupUri would build the window during sign-in, before Explorer can
+        // show it or deliver shortcuts. Create it after the shell is ready.
+        StartupUri = null;
         base.OnStartup(e);
+
+        var window = new MainWindow();
+        MainWindow = window;
+        window.StartWhenShellIsReady();
     }
 
     private static bool IsAutostartArgument(string argument) =>

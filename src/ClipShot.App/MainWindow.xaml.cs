@@ -36,6 +36,11 @@ public partial class MainWindow : Window
     private bool _updateDialogOpen;
     private TrayBalloonKind _activeBalloon = TrayBalloonKind.None;
     private Forms.ToolStripMenuItem? _trayUpdateMenuItem;
+    private DispatcherTimer? _shellWait;
+    private DispatcherTimer? _hotkeyRetry;
+    private int _hotkeyAttempts;
+    private bool _openedFromTray;
+    private readonly int _taskbarCreated = NativeMethods.RegisterWindowMessage("TaskbarCreated");
 
     private enum TrayBalloonKind
     {
@@ -58,10 +63,6 @@ public partial class MainWindow : Window
         // Upgrade legacy Run-key entries so login launches with --autostart (tray only).
         try { StartupManager.EnsureCurrentCommand(); }
         catch { /* keep going if the registry is temporarily unavailable */ }
-        InitializeTrayIcon();
-        if (App.StartMinimizedToTray)
-            PrepareQuietTrayStart();
-        SourceInitialized += MainWindow_SourceInitialized;
         Closing += MainWindow_Closing;
         Loaded += MainWindow_Loaded;
         _updateCheckTimer.Tick += async (_, _) => await CheckForUpdatesAsync();
@@ -69,6 +70,8 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _updateCheckTimer.Stop();
+            _shellWait?.Stop();
+            _hotkeyRetry?.Stop();
             _hotkeyManager?.Dispose();
             if (_trayIcon is not null)
             {
@@ -79,15 +82,104 @@ public partial class MainWindow : Window
         };
     }
 
-    private void PrepareQuietTrayStart()
+    /// <summary>
+    /// Sign-in starts this process before the desktop exists. Shortcuts and the
+    /// tray icon do nothing until Explorer is up, so wait for it, then stay hidden.
+    /// </summary>
+    internal void StartWhenShellIsReady()
     {
-        // Avoid a visible flash when Windows launches ClipShot at sign-in.
-        ShowInTaskbar = false;
-        ShowActivated = false;
-        WindowState = WindowState.Minimized;
-        Visibility = Visibility.Hidden;
-        _trayNoticeShown = true;
-        StatusText.Text = "ClipShot is running in the system tray";
+        if (NativeMethods.IsShellReady())
+        {
+            FinishStartup();
+            return;
+        }
+
+        _shellWait = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+        var attempts = 0;
+        _shellWait.Tick += (_, _) =>
+        {
+            attempts++;
+            if (!NativeMethods.IsShellReady() && attempts < 75)
+                return;
+
+            _shellWait.Stop();
+            FinishStartup();
+        };
+        _shellWait.Start();
+    }
+
+    private void FinishStartup()
+    {
+        EnsureMessageHook();
+        InitializeTrayIcon();
+        EnsureHotkeys();
+        if (App.StartMinimizedToTray)
+        {
+            ShowInTaskbar = false;
+            ShowActivated = false;
+            _trayNoticeShown = true;
+            StatusText.Text = "ClipShot is running in the system tray";
+            Hide();
+        }
+        else
+        {
+            Show();
+        }
+
+        _ = CheckForUpdatesAsync();
+    }
+
+    private void EnsureMessageHook()
+    {
+        if (_source is not null)
+            return;
+
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+            handle = new WindowInteropHelper(this).EnsureHandle();
+        _source = HwndSource.FromHwnd(handle);
+        _source?.AddHook(WindowMessageHook);
+    }
+
+    private void EnsureHotkeys()
+    {
+        _hotkeyManager ??= new GlobalHotkeyManager(OnHotkey);
+        if (_hotkeyManager.TryRegister(_activeSettings.AsHotkeys(), out var error) && error is null)
+        {
+            _hotkeyRetry?.Stop();
+            _hotkeyRetry = null;
+            if (StatusText.Text.StartsWith("Shortcut registration failed", StringComparison.Ordinal))
+                StatusText.Text = IsVisible ? "Ready" : "ClipShot is running in the system tray";
+            return;
+        }
+
+        StatusText.Text = $"Shortcut registration failed: {error}";
+        if (_hotkeyAttempts >= 40)
+        {
+            _hotkeyRetry?.Stop();
+            return;
+        }
+
+        _hotkeyAttempts++;
+        _hotkeyRetry ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _hotkeyRetry.Tick -= HotkeyRetryTick;
+        _hotkeyRetry.Tick += HotkeyRetryTick;
+        _hotkeyRetry.Start();
+    }
+
+    private void HotkeyRetryTick(object? sender, EventArgs e) => EnsureHotkeys();
+
+    private void OnHotkey(int id)
+    {
+        switch (id)
+        {
+            case 1:
+                CaptureRegion(IsVisible);
+                break;
+            case 2:
+                CaptureScreenFromHotkey();
+                break;
+        }
     }
 
     private void InitializeTrayIcon()
@@ -171,6 +263,10 @@ public partial class MainWindow : Window
 
     private void RestoreFromTray()
     {
+        _openedFromTray = true;
+        _hotkeyAttempts = 0;
+        EnsureMessageHook();
+        EnsureHotkeys();
         ShowInTaskbar = true;
         Show();
         if (WindowState == WindowState.Minimized)
@@ -190,13 +286,12 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        if (App.StartMinimizedToTray)
+        // The first show after a sign-in launch is the user opening the tray.
+        // Hide only the automatic one, or that click would close the window again.
+        if (App.StartMinimizedToTray && !_openedFromTray)
         {
-            // Ensure we stay tray-only even if WPF briefly activated the window.
             ShowInTaskbar = false;
             Hide();
-            if (WindowState == WindowState.Minimized)
-                WindowState = WindowState.Normal;
             StatusText.Text = "ClipShot is running in the system tray";
         }
 
@@ -347,36 +442,32 @@ public partial class MainWindow : Window
         }
     }
 
-    private void MainWindow_SourceInitialized(object? sender, EventArgs e)
-    {
-        var handle = new WindowInteropHelper(this).Handle;
-        _source = HwndSource.FromHwnd(handle);
-        _source?.AddHook(WindowMessageHook);
-        _hotkeyManager = new GlobalHotkeyManager(handle);
-
-        if (!_hotkeyManager.TryRegister(_activeSettings.AsHotkeys(), out var error))
-            StatusText.Text = $"Shortcut registration failed: {error}";
-        else
-            StatusText.Text = error is null ? "Ready" : error;
-    }
-
     private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (message != NativeMethods.WmHotkey)
-            return IntPtr.Zero;
-
-        handled = true;
-        switch (wParam.ToInt32())
+        if (_taskbarCreated != 0 && message == _taskbarCreated)
         {
-            case 1:
-                CaptureRegion(IsVisible);
-                break;
-            case 2:
-                CaptureScreenFromHotkey();
-                break;
+            handled = true;
+            RecreateTrayIcon();
+            _hotkeyAttempts = 0;
+            EnsureHotkeys();
         }
 
         return IntPtr.Zero;
+    }
+
+    private void RecreateTrayIcon()
+    {
+        if (_trayIcon is null)
+            return;
+
+        var showUpdate = _trayUpdateMenuItem?.Visible == true;
+        var version = _latestRelease?.Version;
+        _trayIcon.Visible = false;
+        _trayIcon.Dispose();
+        _trayIcon = null;
+        InitializeTrayIcon();
+        if (showUpdate)
+            SetTrayUpdateMenuVisible(true, version);
     }
 
     private static string FormatVersion(Version version) =>

@@ -1,1 +1,1 @@
-- A region capture stays on the area you selected, instead of shifting up.
+- Shortcuts work after you sign in, without opening ClipShot from the tray.
