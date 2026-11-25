@@ -1,1 +1,1 @@
-- Shortcuts work after you sign in, without opening ClipShot from the tray.
+- ClipShot stays closed after an update.

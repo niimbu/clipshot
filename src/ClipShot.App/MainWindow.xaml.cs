@@ -110,21 +110,21 @@ public partial class MainWindow : Window
 
     private void FinishStartup()
     {
+        if (App.StartMinimizedToTray)
+        {
+            // Set this before the window handle exists. Changing it later makes WPF show the window.
+            ShowActivated = false;
+            ShowInTaskbar = false;
+            Visibility = Visibility.Hidden;
+            _trayNoticeShown = true;
+            StatusText.Text = "ClipShot is running in the system tray";
+        }
+
         EnsureMessageHook();
         InitializeTrayIcon();
         EnsureHotkeys();
-        if (App.StartMinimizedToTray)
-        {
-            ShowInTaskbar = false;
-            ShowActivated = false;
-            _trayNoticeShown = true;
-            StatusText.Text = "ClipShot is running in the system tray";
-            Hide();
-        }
-        else
-        {
+        if (!App.StartMinimizedToTray)
             Show();
-        }
 
         _ = CheckForUpdatesAsync();
     }

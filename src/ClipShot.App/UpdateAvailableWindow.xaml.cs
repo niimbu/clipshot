@@ -83,7 +83,8 @@ public partial class UpdateAvailableWindow : Window
             BusyLabel.Text = "Closing…";
             StatusText.Text = "Update installed. ClipShot is closing.";
             await Task.Delay(400);
-            System.Windows.Application.Current.Shutdown();
+            // Shutdown can be cancelled while the update window is open, which leaves ClipShot on screen.
+            Environment.Exit(0);
         }
         catch (OperationCanceledException)
         {

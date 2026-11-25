@@ -71,7 +71,7 @@ try {
     $settingsDir = Join-Path $env:APPDATA "ClipShot"
     New-Item -ItemType Directory -Force -Path $settingsDir | Out-Null
     $ticks = (Get-Item -LiteralPath $exePath).LastWriteTimeUtc.Ticks
-    Set-Content -LiteralPath (Join-Path $settingsDir "last-install") -Value $ticks -Encoding ascii
+    Set-Content -LiteralPath (Join-Path $settingsDir "last-install") -Value "$ticks open" -Encoding ascii
 }
 finally {
     if (Test-Path $tempPath) {

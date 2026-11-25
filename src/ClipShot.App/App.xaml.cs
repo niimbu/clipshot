@@ -13,19 +13,18 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        if (UpdateInstaller.ShouldCloseUpdateRelaunch())
+        // StartupUri would show a window before Shutdown can run. Never use it.
+        StartupUri = null;
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        StartMinimizedToTray = e.Args.Any(IsAutostartArgument);
+        if (!StartMinimizedToTray && UpdateInstaller.ShouldCloseUpdateRelaunch())
         {
-            Shutdown();
+            Environment.Exit(0);
             return;
         }
 
         // Stay alive when the main window is hidden to the tray. Exit only via tray → Exit
         // or Application.Shutdown().
-        ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        StartMinimizedToTray = e.Args.Any(IsAutostartArgument);
-        // StartupUri would build the window during sign-in, before Explorer can
-        // show it or deliver shortcuts. Create it after the shell is ready.
-        StartupUri = null;
         base.OnStartup(e);
 
         var window = new MainWindow();
