@@ -1,2 +1,3 @@
-- ClipShot opens from the Start menu again, shows under Settings → Apps, and records a startup log if something blocks the window.
+- ClipShot opens again after install and from the Start menu.
+
 

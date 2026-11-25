@@ -26,8 +26,7 @@ public partial class App : System.Windows.Application
         HookExceptionLogging();
         StartupLog.Write("OnStartup");
 
-        // StartupUri would show a window before we control launch. Never use it.
-        StartupUri = null;
+        // MainWindow is created below. App.xaml must not set StartupUri.
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         StartMinimizedToTray = e.Args.Any(IsAutostartArgument);
         StartupLog.Write(StartMinimizedToTray ? "Mode: tray autostart" : "Mode: normal window");
