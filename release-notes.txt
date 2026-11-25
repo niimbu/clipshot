@@ -1,1 +1,1 @@
-- ClipShot stays closed after an update.
+- Opening ClipShot from the Start menu shows the window.

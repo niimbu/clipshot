@@ -261,6 +261,27 @@ public partial class MainWindow : Window
         }
     }
 
+    internal void ListenForShowRequests(EventWaitHandle request)
+    {
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                while (request.WaitOne())
+                    Dispatcher.BeginInvoke(RestoreFromTray);
+            }
+            catch (ObjectDisposedException)
+            {
+                // The event is released when the process exits.
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "ClipShot.Show"
+        };
+        thread.Start();
+    }
+
     private void RestoreFromTray()
     {
         _openedFromTray = true;

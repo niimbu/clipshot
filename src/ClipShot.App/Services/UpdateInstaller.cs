@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Net.Http;
 
@@ -77,66 +76,5 @@ internal static class UpdateInstaller
         });
         if (updaterProcess is null)
             throw new InvalidOperationException("Windows could not start the update helper.");
-    }
-
-    /// <summary>
-    /// The in-app updater replaces the exe and Windows may start that new file.
-    /// Close that one launch. A stamp ending in "open" is a real user start.
-    /// </summary>
-    public static bool ShouldCloseUpdateRelaunch()
-    {
-        try
-        {
-            var executable = Environment.ProcessPath;
-            if (string.IsNullOrWhiteSpace(executable) || !File.Exists(executable))
-                return false;
-
-            var written = File.GetLastWriteTimeUtc(executable);
-            var age = DateTime.UtcNow - written;
-            if (age < TimeSpan.Zero || age > TimeSpan.FromMinutes(2))
-                return false;
-
-            var settingsDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "ClipShot");
-            var installDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Programs",
-                "ClipShot");
-            var installedCopy = string.Equals(
-                Path.GetFullPath(Path.GetDirectoryName(executable) ?? ""),
-                Path.GetFullPath(installDirectory),
-                StringComparison.OrdinalIgnoreCase);
-            var hasSettings = File.Exists(Path.Combine(settingsDirectory, "settings.json"));
-            if (!installedCopy && !hasSettings)
-                return false;
-
-            Directory.CreateDirectory(settingsDirectory);
-            var markerPath = Path.Combine(settingsDirectory, "last-install");
-            var stamp = written.Ticks.ToString(CultureInfo.InvariantCulture);
-            var marker = File.Exists(markerPath) ? File.ReadAllText(markerPath).Trim() : "";
-            if (IsOpenStamp(marker, stamp))
-                return false;
-
-            // Close the one start that follows the replaced file, then allow the next open.
-            File.WriteAllText(markerPath, stamp + " open");
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static bool IsOpenStamp(string marker, string stamp)
-    {
-        if (!marker.StartsWith(stamp, StringComparison.Ordinal) ||
-            !marker.EndsWith(" open", StringComparison.Ordinal))
-            return false;
-
-        var split = marker.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return split.Length == 2 &&
-               split[0] == stamp &&
-               long.TryParse(split[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out _);
     }
 }
