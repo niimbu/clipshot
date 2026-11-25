@@ -1,1 +1,2 @@
-- Opening ClipShot from the Start menu shows the window.
+- The Start menu opens ClipShot even when it was already running in the tray.
+

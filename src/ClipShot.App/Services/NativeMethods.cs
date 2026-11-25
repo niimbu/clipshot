@@ -19,8 +19,18 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
+    internal const int SwRestore = 9;
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     internal static extern IntPtr FindWindow(string? className, string? windowName);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     internal static extern int RegisterWindowMessage(string message);
@@ -30,4 +40,19 @@ internal static class NativeMethods
     /// Sign-in can launch ClipShot before that.
     /// </summary>
     internal static bool IsShellReady() => FindWindow("Shell_TrayWnd", null) != IntPtr.Zero;
+
+    /// <summary>
+    /// Bring an already-running ClipShot window to the front, including one that
+    /// was left hidden in the tray.
+    /// </summary>
+    internal static bool TryActivateMainWindow()
+    {
+        var handle = FindWindow(null, "ClipShot");
+        if (handle == IntPtr.Zero)
+            return false;
+
+        ShowWindow(handle, SwRestore);
+        SetForegroundWindow(handle);
+        return true;
+    }
 }

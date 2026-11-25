@@ -13,18 +13,10 @@ function Stop-ClipShotProcesses {
     $running = @(Get-Process -Name "ClipShot" -ErrorAction SilentlyContinue)
     if ($running.Count -eq 0) { return }
 
-    Write-Host "ClipShot is running — closing it so the install can update the file..." -ForegroundColor Yellow
-    foreach ($proc in $running) {
-        try { $proc.CloseMainWindow() | Out-Null } catch {}
-    }
-
-    Start-Sleep -Milliseconds 800
-    $stillRunning = @(Get-Process -Name "ClipShot" -ErrorAction SilentlyContinue)
-    if ($stillRunning.Count -gt 0) {
-        Write-Host "Force-stopping ClipShot..." -ForegroundColor Yellow
-        $stillRunning | Stop-Process -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Milliseconds 500
-    }
+    # Closing the window only hides ClipShot to the tray, so force-stop the process.
+    Write-Host "ClipShot is running — stopping it so the install can update the file..." -ForegroundColor Yellow
+    $running | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
 
     $deadline = (Get-Date).AddSeconds(10)
     while ((Get-Date) -lt $deadline) {
@@ -32,7 +24,7 @@ function Stop-ClipShotProcesses {
         Start-Sleep -Milliseconds 250
     }
 
-    throw "ClipShot is still running and locking $exePath. Close it from the system tray (right-click → Exit), then run the installer again."
+    throw "ClipShot is still running and locking $exePath. Open Task Manager, end ClipShot, then run the installer again."
 }
 
 Write-Host "Finding the latest ClipShot release..." -ForegroundColor Cyan

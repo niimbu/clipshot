@@ -120,11 +120,25 @@ public partial class MainWindow : Window
             StatusText.Text = "ClipShot is running in the system tray";
         }
 
-        EnsureMessageHook();
-        InitializeTrayIcon();
-        EnsureHotkeys();
+        // Show first so a Start menu launch is never blocked by tray or shortcut setup.
         if (!App.StartMinimizedToTray)
             Show();
+
+        try
+        {
+            EnsureMessageHook();
+            InitializeTrayIcon();
+            EnsureHotkeys();
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = "ClipShot opened, but the tray or shortcuts need attention";
+            MessageBox.Show(
+                $"ClipShot opened, but something blocked the tray icon or shortcuts.\n\n{ex.Message}",
+                "ClipShot",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
 
         _ = CheckForUpdatesAsync();
     }

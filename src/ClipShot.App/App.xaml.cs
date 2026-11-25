@@ -2,6 +2,7 @@ using System.Linq;
 using System.Threading;
 using System.Windows;
 using ClipShot.Services;
+using MessageBox = System.Windows.MessageBox;
 
 namespace ClipShot;
 
@@ -27,7 +28,18 @@ public partial class App : System.Windows.Application
         _instance = new Mutex(true, InstanceMutexName, out var created);
         if (!created)
         {
+            // Start menu or a second shortcut while ClipShot is already in the tray.
             SignalRunningInstance();
+            if (!NativeMethods.TryActivateMainWindow() && !StartMinimizedToTray)
+            {
+                MessageBox.Show(
+                    "ClipShot is already running in the system tray.\n\n" +
+                    "Open it from the tray icon, or right-click the tray icon and choose Exit, then start ClipShot again.",
+                    "ClipShot",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+
             Environment.Exit(0);
             return;
         }
@@ -52,7 +64,7 @@ public partial class App : System.Windows.Application
         }
         catch (WaitHandleCannotBeOpenedException)
         {
-            // The running copy is an older build and does not listen yet.
+            // An older build is running and does not listen for this signal.
         }
     }
 
