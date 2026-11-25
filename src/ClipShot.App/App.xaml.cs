@@ -1,6 +1,8 @@
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Windows;
+using System.Windows.Threading;
 using ClipShot.Services;
 using MessageBox = System.Windows.MessageBox;
 
@@ -20,21 +22,38 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        // StartupUri would show a window before Shutdown can run. Never use it.
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        HookExceptionLogging();
+        StartupLog.Write("OnStartup");
+
+        // StartupUri would show a window before we control launch. Never use it.
         StartupUri = null;
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         StartMinimizedToTray = e.Args.Any(IsAutostartArgument);
+        StartupLog.Write(StartMinimizedToTray ? "Mode: tray autostart" : "Mode: normal window");
 
-        _instance = new Mutex(true, InstanceMutexName, out var created);
+        if (!TryClaimInstance(out var created))
+        {
+            StartupLog.Write("Exit: could not claim instance mutex");
+            MessageBox.Show(
+                "ClipShot could not start because Windows blocked a second copy from opening.\n\n" +
+                "Open Task Manager, end every ClipShot process, then try again.",
+                "ClipShot",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            Environment.Exit(1);
+            return;
+        }
+
         if (!created)
         {
-            // Start menu or a second shortcut while ClipShot is already in the tray.
+            StartupLog.Write("Exit: another ClipShot is already running");
             SignalRunningInstance();
             if (!NativeMethods.TryActivateMainWindow() && !StartMinimizedToTray)
             {
                 MessageBox.Show(
-                    "ClipShot is already running in the system tray.\n\n" +
-                    "Open it from the tray icon, or right-click the tray icon and choose Exit, then start ClipShot again.",
+                    "ClipShot is already running.\n\n" +
+                    "Look for it in the system tray (the ^ arrow near the clock), or open Task Manager and end ClipShot, then start it again.",
                     "ClipShot",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -44,15 +63,86 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        // Stay alive when the main window is hidden to the tray. Exit only via tray → Exit
-        // or Application.Shutdown().
         base.OnStartup(e);
 
-        _showRequest = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
-        var window = new MainWindow();
-        MainWindow = window;
-        window.ListenForShowRequests(_showRequest);
-        window.StartWhenShellIsReady();
+        try
+        {
+            _showRequest = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
+            var window = new MainWindow();
+            MainWindow = window;
+            window.ListenForShowRequests(_showRequest);
+
+            // A Start menu launch must show the window immediately. Only sign-in waits for the shell.
+            if (StartMinimizedToTray)
+                window.StartWhenShellIsReady();
+            else
+                window.StartNormally();
+        }
+        catch (Exception ex)
+        {
+            StartupLog.WriteException("OnStartup failed", ex);
+            MessageBox.Show(
+                "ClipShot could not open.\n\n" + ex.Message +
+                "\n\nDetails were saved to:\n" +
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClipShot", "startup.log"),
+                "ClipShot",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Environment.Exit(1);
+        }
+    }
+
+    private static bool TryClaimInstance(out bool created)
+    {
+        created = false;
+        try
+        {
+            _instance = new Mutex(true, InstanceMutexName, out created);
+            return true;
+        }
+        catch (AbandonedMutexException)
+        {
+            // A previous ClipShot exited without releasing the lock. Take it and continue.
+            _instance = new Mutex(true, InstanceMutexName, out created);
+            created = true;
+            StartupLog.Write("Recovered an abandoned instance lock");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            StartupLog.WriteException("Mutex", ex);
+            return false;
+        }
+    }
+
+    private static void HookExceptionLogging()
+    {
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            if (args.ExceptionObject is Exception ex)
+                StartupLog.WriteException("Unhandled", ex);
+            else
+                StartupLog.Write($"Unhandled: {args.ExceptionObject}");
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            StartupLog.WriteException("Task", args.Exception);
+            args.SetObserved();
+        };
+    }
+
+    private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        StartupLog.WriteException("Dispatcher", e.Exception);
+        MessageBox.Show(
+            "ClipShot hit an unexpected error.\n\n" + e.Exception.Message +
+            "\n\nDetails were saved to:\n" +
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClipShot", "startup.log"),
+            "ClipShot",
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
+        e.Handled = true;
     }
 
     private static void SignalRunningInstance()

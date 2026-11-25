@@ -83,14 +83,24 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// Start menu and normal launches show the window right away.
+    /// </summary>
+    internal void StartNormally()
+    {
+        StartupLog.Write("StartNormally");
+        FinishStartup(showWindow: true);
+    }
+
+    /// <summary>
     /// Sign-in starts this process before the desktop exists. Shortcuts and the
     /// tray icon do nothing until Explorer is up, so wait for it, then stay hidden.
     /// </summary>
     internal void StartWhenShellIsReady()
     {
+        StartupLog.Write("StartWhenShellIsReady");
         if (NativeMethods.IsShellReady())
         {
-            FinishStartup();
+            FinishStartup(showWindow: false);
             return;
         }
 
@@ -103,14 +113,15 @@ public partial class MainWindow : Window
                 return;
 
             _shellWait.Stop();
-            FinishStartup();
+            FinishStartup(showWindow: false);
         };
         _shellWait.Start();
     }
 
-    private void FinishStartup()
+    private void FinishStartup(bool showWindow)
     {
-        if (App.StartMinimizedToTray)
+        StartupLog.Write(showWindow ? "FinishStartup show" : "FinishStartup tray");
+        if (!showWindow)
         {
             // Set this before the window handle exists. Changing it later makes WPF show the window.
             ShowActivated = false;
@@ -119,19 +130,21 @@ public partial class MainWindow : Window
             _trayNoticeShown = true;
             StatusText.Text = "ClipShot is running in the system tray";
         }
-
-        // Show first so a Start menu launch is never blocked by tray or shortcut setup.
-        if (!App.StartMinimizedToTray)
+        else
+        {
             Show();
+        }
 
         try
         {
             EnsureMessageHook();
             InitializeTrayIcon();
             EnsureHotkeys();
+            StartupLog.Write("Tray and shortcuts ready");
         }
         catch (Exception ex)
         {
+            StartupLog.WriteException("FinishStartup", ex);
             StatusText.Text = "ClipShot opened, but the tray or shortcuts need attention";
             MessageBox.Show(
                 $"ClipShot opened, but something blocked the tray icon or shortcuts.\n\n{ex.Message}",
@@ -157,7 +170,13 @@ public partial class MainWindow : Window
 
     private void EnsureHotkeys()
     {
-        _hotkeyManager ??= new GlobalHotkeyManager(OnHotkey);
+        EnsureMessageHook();
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+            handle = new WindowInteropHelper(this).EnsureHandle();
+
+        _hotkeyManager?.Dispose();
+        _hotkeyManager = new GlobalHotkeyManager(handle);
         if (_hotkeyManager.TryRegister(_activeSettings.AsHotkeys(), out var error) && error is null)
         {
             _hotkeyRetry?.Stop();
@@ -182,19 +201,6 @@ public partial class MainWindow : Window
     }
 
     private void HotkeyRetryTick(object? sender, EventArgs e) => EnsureHotkeys();
-
-    private void OnHotkey(int id)
-    {
-        switch (id)
-        {
-            case 1:
-                CaptureRegion(IsVisible);
-                break;
-            case 2:
-                CaptureScreenFromHotkey();
-                break;
-        }
-    }
 
     private void InitializeTrayIcon()
     {
@@ -479,6 +485,22 @@ public partial class MainWindow : Window
 
     private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (message == NativeMethods.WmHotkey)
+        {
+            handled = true;
+            switch (wParam.ToInt32())
+            {
+                case 1:
+                    CaptureRegion(IsVisible);
+                    break;
+                case 2:
+                    CaptureScreenFromHotkey();
+                    break;
+            }
+
+            return IntPtr.Zero;
+        }
+
         if (_taskbarCreated != 0 && message == _taskbarCreated)
         {
             handled = true;

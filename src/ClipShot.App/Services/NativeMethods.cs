@@ -5,7 +5,6 @@ namespace ClipShot.Services;
 internal static class NativeMethods
 {
     internal const int WmHotkey = 0x0312;
-    internal static readonly IntPtr HwndMessage = new(-3);
 
     [DllImport("gdi32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

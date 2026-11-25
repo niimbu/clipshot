@@ -1,2 +1,2 @@
-- The Start menu opens ClipShot even when it was already running in the tray.
+- ClipShot opens from the Start menu again, shows under Settings → Apps, and records a startup log if something blocks the window.
 

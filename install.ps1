@@ -8,6 +8,8 @@ $installDir = Join-Path $env:LOCALAPPDATA "Programs\ClipShot"
 $shortcutPath = Join-Path ([Environment]::GetFolderPath("Programs")) "ClipShot.lnk"
 $apiUrl = "https://api.github.com/repos/$repo/releases/latest"
 $exePath = Join-Path $installDir "ClipShot.exe"
+$uninstallScript = Join-Path $installDir "uninstall.ps1"
+$uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ClipShot"
 
 function Stop-ClipShotProcesses {
     $running = @(Get-Process -Name "ClipShot" -ErrorAction SilentlyContinue)
@@ -39,6 +41,8 @@ if (-not $asset) {
     throw "The latest release does not contain ClipShot.exe yet. Please check https://github.com/$repo/releases"
 }
 
+$version = ($release.tag_name -replace '^v', '')
+
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 Stop-ClipShotProcesses
 
@@ -59,11 +63,6 @@ try {
     }
 
     Move-Item -LiteralPath $tempPath -Destination $exePath -Force
-
-    $settingsDir = Join-Path $env:APPDATA "ClipShot"
-    New-Item -ItemType Directory -Force -Path $settingsDir | Out-Null
-    $ticks = (Get-Item -LiteralPath $exePath).LastWriteTimeUtc.Ticks
-    Set-Content -LiteralPath (Join-Path $settingsDir "last-install") -Value "$ticks open" -Encoding ascii
 }
 finally {
     if (Test-Path $tempPath) {
@@ -78,9 +77,39 @@ $shortcut.WorkingDirectory = $installDir
 $shortcut.Description = "Capture and share screenshots with ClipShot"
 $shortcut.Save()
 
+@'
+# ClipShot uninstaller
+$ErrorActionPreference = "Stop"
+$installDir = Join-Path $env:LOCALAPPDATA "Programs\ClipShot"
+$shortcutPath = Join-Path ([Environment]::GetFolderPath("Programs")) "ClipShot.lnk"
+$uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ClipShot"
+$runKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+Get-Process -Name "ClipShot" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 400
+if (Test-Path $shortcutPath) { Remove-Item -LiteralPath $shortcutPath -Force -ErrorAction SilentlyContinue }
+if (Test-Path $runKey) { Remove-ItemProperty -LiteralPath $runKey -Name "ClipShot" -ErrorAction SilentlyContinue }
+if (Test-Path $uninstallKey) { Remove-Item -LiteralPath $uninstallKey -Recurse -Force -ErrorAction SilentlyContinue }
+if (Test-Path $installDir) { Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue }
+'@ | Set-Content -LiteralPath $uninstallScript -Encoding UTF8
+
+New-Item -Path $uninstallKey -Force | Out-Null
+Set-ItemProperty -LiteralPath $uninstallKey -Name "DisplayName" -Value "ClipShot"
+Set-ItemProperty -LiteralPath $uninstallKey -Name "DisplayVersion" -Value $version
+Set-ItemProperty -LiteralPath $uninstallKey -Name "Publisher" -Value "niimbu"
+Set-ItemProperty -LiteralPath $uninstallKey -Name "InstallLocation" -Value $installDir
+Set-ItemProperty -LiteralPath $uninstallKey -Name "DisplayIcon" -Value $exePath
+Set-ItemProperty -LiteralPath $uninstallKey -Name "UninstallString" -Value "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScript`""
+Set-ItemProperty -LiteralPath $uninstallKey -Name "QuietUninstallString" -Value "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScript`""
+Set-ItemProperty -LiteralPath $uninstallKey -Name "NoModify" -Value 1 -Type DWord
+Set-ItemProperty -LiteralPath $uninstallKey -Name "NoRepair" -Value 1 -Type DWord
+
 Write-Host ""
 Write-Host "ClipShot $($release.tag_name) was installed successfully." -ForegroundColor Green
-Write-Host "You can launch it from the Start Menu or run: $exePath"
+Write-Host "Installed to: $exePath"
+Write-Host "It also appears under Settings → Apps as ClipShot."
+Write-Host ""
+Write-Host "Starting ClipShot..." -ForegroundColor Cyan
+Start-Process -FilePath $exePath
 Write-Host ""
 Write-Host "If Windows shows 'Windows protected your PC':" -ForegroundColor Yellow
 Write-Host "  1. Click More info"

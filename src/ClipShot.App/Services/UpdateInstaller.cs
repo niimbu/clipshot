@@ -59,12 +59,6 @@ internal static class UpdateInstaller
             "while (Get-Process -Id $processId -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 400 }\n" +
             "Move-Item -LiteralPath " + Quote(staged) + " -Destination " + Quote(executable) + " -Force\n" +
             "try { Unblock-File -LiteralPath " + Quote(executable) + " -ErrorAction SilentlyContinue } catch {}\n" +
-            "try {\n" +
-            "  $settingsDir = Join-Path $env:APPDATA 'ClipShot'\n" +
-            "  New-Item -ItemType Directory -Force -Path $settingsDir | Out-Null\n" +
-            "  $ticks = (Get-Item -LiteralPath " + Quote(executable) + ").LastWriteTimeUtc.Ticks\n" +
-            "  Set-Content -LiteralPath (Join-Path $settingsDir 'last-install') -Value ($ticks.ToString() + ' exit') -Encoding ascii\n" +
-            "} catch {}\n" +
             "Remove-Item -LiteralPath $PSCommandPath -Force\n";
         await File.WriteAllTextAsync(scriptPath, script, new System.Text.UTF8Encoding(false), cancellationToken);
         var updaterProcess = Process.Start(new ProcessStartInfo
