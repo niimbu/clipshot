@@ -155,7 +155,7 @@
                 <Border x:Name="RegionChrome"
                         BorderBrush="White"
                         BorderThickness="2"
-                        Background="Transparent"
+                        Background="{x:Null}"
                         SnapsToDevicePixels="True">
                     <Border.Effect>
                         <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.35" Color="Black"/>
@@ -196,7 +196,7 @@
                     <Border.Effect>
                         <DropShadowEffect BlurRadius="28" ShadowDepth="0" Opacity="0.45" Color="Black"/>
                     </Border.Effect>
-                    <Grid x:Name="PreviewSurface" Background="White" HorizontalAlignment="Left" VerticalAlignment="Top">
+                    <Grid x:Name="PreviewSurface" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top">
                         <Image x:Name="PreviewImage" Stretch="Fill" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False"/>
                         <InkCanvas x:Name="AnnotationCanvas"
                                    Background="Transparent"

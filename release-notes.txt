@@ -1,4 +1,5 @@
-- The editor toolbar sits under the screenshot, and every tool stays clickable.
+- The editor toolbar sits under the selected region, and the leftover corner box no longer blocks drawing.
+
 
 
 

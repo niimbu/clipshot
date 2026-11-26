@@ -185,7 +185,13 @@ public partial class ScreenshotEditorWindow : Window
     private void EnableInPlaceMode()
     {
         Background = Brushes.Black;
+        // The centered host sits above the in-place layer in z-order. If it stays
+        // visible even briefly, its empty card and transparent scroll area steal clicks.
         CenteredHost.Visibility = Visibility.Collapsed;
+        CenteredHost.IsHitTestVisible = false;
+        CenteredSurfaceBorder.Visibility = Visibility.Collapsed;
+        CenteredSurfaceBorder.IsHitTestVisible = false;
+        CenteredSurfaceBorder.Effect = null;
         InPlaceHost.Visibility = Visibility.Visible;
         FullScreenImage.Source = _fullScreenshot;
 
@@ -193,10 +199,39 @@ public partial class ScreenshotEditorWindow : Window
             CenteredSurfaceBorder.Child = null;
         InPlaceSurfaceSlot.Children.Clear();
         InPlaceSurfaceSlot.Children.Add(PreviewSurface);
+        PreviewSurface.Background = Brushes.Transparent;
+        PreviewSurface.HorizontalAlignment = HorizontalAlignment.Stretch;
+        PreviewSurface.VerticalAlignment = VerticalAlignment.Stretch;
 
         InPlaceDimOverlay.Fill = Brushes.Black;
         InPlaceDimOverlay.Opacity = _dimOpacity;
+        AttachToolbarToInPlaceCanvas();
         UpdateInPlaceLayout();
+        SourceInitialized += (_, _) => Dispatcher.BeginInvoke(() =>
+        {
+            UpdateInPlaceLayout();
+            PositionEditorToolbar();
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
+        DpiChanged += (_, _) =>
+        {
+            UpdateInPlaceLayout();
+            PositionEditorToolbar();
+        };
+    }
+
+    private void AttachToolbarToInPlaceCanvas()
+    {
+        if (!_inPlaceMode || ReferenceEquals(EditorToolbar.Parent, InPlaceCanvas))
+            return;
+
+        if (EditorToolbar.Parent is Panel parent)
+            parent.Children.Remove(EditorToolbar);
+
+        InPlaceCanvas.Children.Add(EditorToolbar);
+        Panel.SetZIndex(EditorToolbar, 1000);
+        EditorToolbar.Margin = new Thickness(0);
+        EditorToolbar.HorizontalAlignment = HorizontalAlignment.Left;
+        EditorToolbar.VerticalAlignment = VerticalAlignment.Top;
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -206,6 +241,14 @@ public partial class ScreenshotEditorWindow : Window
         else
             FitCapturedImageToHost();
         PositionEditorToolbar();
+        // DisplayLayout pins the window after the first layout pass. Reposition once
+        // the final monitor size is applied so the bar stays under the region.
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (_inPlaceMode)
+                UpdateInPlaceLayout();
+            PositionEditorToolbar();
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
         Activate();
         Focus();
         AnnotationCanvas.Focus();
@@ -2408,18 +2451,24 @@ public partial class ScreenshotEditorWindow : Window
         if (EditorToolbar is null || ActualWidth < 2 || ActualHeight < 2)
             return;
 
+        if (_inPlaceMode)
+            AttachToolbarToInPlaceCanvas();
+
         var maxWidth = Math.Max(160, ActualWidth - 16);
         EditorToolbar.MaxWidth = maxWidth;
+        EditorToolbar.UpdateLayout();
         EditorToolbar.Measure(new Size(maxWidth, double.PositiveInfinity));
         var barWidth = Math.Min(Math.Max(EditorToolbar.DesiredSize.Width, 1), maxWidth);
-        var barHeight = Math.Max(EditorToolbar.DesiredSize.Height, EditorToolbar.ActualHeight);
+        var barHeight = EditorToolbar.DesiredSize.Height;
         if (barHeight < 1)
-            barHeight = 88;
+            barHeight = Math.Max(EditorToolbar.ActualHeight, 88);
 
         double anchorLeft;
         double anchorTop;
         double anchorWidth;
         double anchorBottom;
+        double hostWidth;
+        double hostHeight;
 
         if (_inPlaceMode && _regionBounds.Width > 1 && _regionBounds.Height > 1)
         {
@@ -2427,6 +2476,8 @@ public partial class ScreenshotEditorWindow : Window
             anchorTop = _regionBounds.Top;
             anchorWidth = _regionBounds.Width;
             anchorBottom = _regionBounds.Bottom;
+            hostWidth = HostWidth();
+            hostHeight = HostHeight();
         }
         else if (CenteredHost.Visibility == Visibility.Visible &&
                  CenteredSurfaceBorder.IsVisible &&
@@ -2438,23 +2489,42 @@ public partial class ScreenshotEditorWindow : Window
             anchorTop = topLeft.Y;
             anchorWidth = CenteredSurfaceBorder.ActualWidth;
             anchorBottom = topLeft.Y + CenteredSurfaceBorder.ActualHeight;
+            hostWidth = ActualWidth;
+            hostHeight = ActualHeight;
         }
         else
         {
-            anchorLeft = 8;
-            anchorTop = 8;
-            anchorWidth = Math.Max(1, ActualWidth - 16);
-            anchorBottom = Math.Max(8, ActualHeight - barHeight - 16);
+            return;
         }
 
+        const double gap = 10;
         var left = anchorLeft + (anchorWidth - barWidth) / 2;
-        var top = anchorBottom + 10;
-        if (top + barHeight > ActualHeight - 8)
-            top = anchorTop - barHeight - 10;
+        double top;
+        var spaceBelow = hostHeight - anchorBottom - 8;
+        var spaceAbove = anchorTop - 8;
+        if (spaceBelow >= barHeight + gap)
+            top = anchorBottom + gap;
+        else if (spaceAbove >= barHeight + gap)
+            top = anchorTop - barHeight - gap;
+        else
+            // Prefer hugging the region over jumping to the window edge.
+            top = spaceBelow >= spaceAbove
+                ? Math.Max(8, hostHeight - barHeight - 8)
+                : Math.Max(8, anchorTop - barHeight - gap);
 
-        left = Math.Clamp(left, 8, Math.Max(8, ActualWidth - barWidth - 8));
-        top = Math.Clamp(top, 8, Math.Max(8, ActualHeight - barHeight - 8));
-        EditorToolbar.Margin = new Thickness(left, top, 0, 0);
+        left = Math.Clamp(left, 8, Math.Max(8, hostWidth - barWidth - 8));
+        top = Math.Clamp(top, 8, Math.Max(8, hostHeight - barHeight - 8));
+
+        if (ReferenceEquals(EditorToolbar.Parent, InPlaceCanvas))
+        {
+            Canvas.SetLeft(EditorToolbar, left);
+            Canvas.SetTop(EditorToolbar, top);
+            EditorToolbar.Margin = new Thickness(0);
+        }
+        else
+        {
+            EditorToolbar.Margin = new Thickness(left, top, 0, 0);
+        }
     }
 
     private void UpdateInPlaceSizeBadgeText()
