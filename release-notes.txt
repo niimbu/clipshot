@@ -1,3 +1,4 @@
-- ClipShot opens again after install and from the Start menu.
+- The editor toolbar sits under the screenshot, and every tool stays clickable.
+
 
 

@@ -205,6 +205,7 @@ public partial class ScreenshotEditorWindow : Window
             UpdateInPlaceLayout();
         else
             FitCapturedImageToHost();
+        PositionEditorToolbar();
         Activate();
         Focus();
         AnnotationCanvas.Focus();
@@ -216,6 +217,7 @@ public partial class ScreenshotEditorWindow : Window
             UpdateInPlaceLayout();
         else
             FitCapturedImageToHost();
+        PositionEditorToolbar();
     }
 
     private void FitCapturedImageToHost()
@@ -228,7 +230,7 @@ public partial class ScreenshotEditorWindow : Window
         // Match the centered host's padding so a multi-monitor capture fills the window
         // instead of scrolling off the display it was captured from.
         var width = Math.Max(1, ActualWidth - 48);
-        var height = Math.Max(1, ActualHeight - 120);
+        var height = Math.Max(1, ActualHeight - 48);
         PreviewSurface.Width = width;
         PreviewSurface.Height = height;
         PreviewImage.Width = width;
@@ -236,6 +238,7 @@ public partial class ScreenshotEditorWindow : Window
         AnnotationCanvas.Width = width;
         AnnotationCanvas.Height = height;
         _fittedToHost = true;
+        PositionEditorToolbar();
     }
 
     private void SetTool(EditorTool tool)
@@ -2393,6 +2396,65 @@ public partial class ScreenshotEditorWindow : Window
         RefreshInPlaceDim(hostWidth, hostHeight);
         PositionResizeHandles();
         PositionInPlaceSizeBadge();
+        PositionEditorToolbar();
+    }
+
+    /// <summary>
+    /// Keep the toolbar immediately under the capture. If there is no room below,
+    /// place it just above the region so every tool stays on screen and clickable.
+    /// </summary>
+    private void PositionEditorToolbar()
+    {
+        if (EditorToolbar is null || ActualWidth < 2 || ActualHeight < 2)
+            return;
+
+        var maxWidth = Math.Max(160, ActualWidth - 16);
+        EditorToolbar.MaxWidth = maxWidth;
+        EditorToolbar.Measure(new Size(maxWidth, double.PositiveInfinity));
+        var barWidth = Math.Min(Math.Max(EditorToolbar.DesiredSize.Width, 1), maxWidth);
+        var barHeight = Math.Max(EditorToolbar.DesiredSize.Height, EditorToolbar.ActualHeight);
+        if (barHeight < 1)
+            barHeight = 88;
+
+        double anchorLeft;
+        double anchorTop;
+        double anchorWidth;
+        double anchorBottom;
+
+        if (_inPlaceMode && _regionBounds.Width > 1 && _regionBounds.Height > 1)
+        {
+            anchorLeft = _regionBounds.Left;
+            anchorTop = _regionBounds.Top;
+            anchorWidth = _regionBounds.Width;
+            anchorBottom = _regionBounds.Bottom;
+        }
+        else if (CenteredHost.Visibility == Visibility.Visible &&
+                 CenteredSurfaceBorder.IsVisible &&
+                 CenteredSurfaceBorder.ActualWidth > 0 &&
+                 PresentationSource.FromVisual(CenteredSurfaceBorder) is not null)
+        {
+            var topLeft = CenteredSurfaceBorder.TranslatePoint(new Point(0, 0), this);
+            anchorLeft = topLeft.X;
+            anchorTop = topLeft.Y;
+            anchorWidth = CenteredSurfaceBorder.ActualWidth;
+            anchorBottom = topLeft.Y + CenteredSurfaceBorder.ActualHeight;
+        }
+        else
+        {
+            anchorLeft = 8;
+            anchorTop = 8;
+            anchorWidth = Math.Max(1, ActualWidth - 16);
+            anchorBottom = Math.Max(8, ActualHeight - barHeight - 16);
+        }
+
+        var left = anchorLeft + (anchorWidth - barWidth) / 2;
+        var top = anchorBottom + 10;
+        if (top + barHeight > ActualHeight - 8)
+            top = anchorTop - barHeight - 10;
+
+        left = Math.Clamp(left, 8, Math.Max(8, ActualWidth - barWidth - 8));
+        top = Math.Clamp(top, 8, Math.Max(8, ActualHeight - barHeight - 8));
+        EditorToolbar.Margin = new Thickness(left, top, 0, 0);
     }
 
     private void UpdateInPlaceSizeBadgeText()
