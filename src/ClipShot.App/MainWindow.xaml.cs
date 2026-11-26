@@ -224,6 +224,12 @@ public partial class MainWindow : Window
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => Dispatcher.BeginInvoke(ExitApplication));
         _trayIcon.ContextMenuStrip = menu;
+        // One left click should open the window. Right click still shows the menu.
+        _trayIcon.MouseClick += (_, e) =>
+        {
+            if (e.Button == Forms.MouseButtons.Left)
+                Dispatcher.BeginInvoke(RestoreFromTray);
+        };
         _trayIcon.DoubleClick += (_, _) => Dispatcher.BeginInvoke(RestoreFromTray);
         _trayIcon.BalloonTipClicked += (_, _) => Dispatcher.BeginInvoke(OnTrayBalloonTipClicked);
     }
@@ -309,10 +315,15 @@ public partial class MainWindow : Window
         EnsureMessageHook();
         EnsureHotkeys();
         ShowInTaskbar = true;
+        ShowActivated = true;
+        Visibility = Visibility.Visible;
         Show();
         if (WindowState == WindowState.Minimized)
             WindowState = WindowState.Normal;
         Activate();
+        Topmost = true;
+        Topmost = false;
+        Focus();
         _ = CheckForUpdatesAsync();
     }
 

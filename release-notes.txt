@@ -1,4 +1,5 @@
-- Region capture and editing work on every display, including mixed-DPI multi-monitor setups.
+- Clicking the tray icon opens ClipShot.
+
 
 
 
