@@ -59,7 +59,7 @@ public partial class UpdateAvailableWindow : Window
         _isUpdating = true;
         _downloadCts = new CancellationTokenSource();
         SetBusyState(true, "Downloading…");
-        StatusText.Text = "Downloading the update. ClipShot will close when it is installed.";
+        StatusText.Text = "Downloading the update. ClipShot will restart when it is installed.";
 
         var progress = new Progress<double>(value =>
         {
@@ -80,10 +80,10 @@ public partial class UpdateAvailableWindow : Window
         try
         {
             await UpdateInstaller.DownloadAndInstallAsync(_release.ExecutableUrl, progress, _downloadCts.Token);
-            BusyLabel.Text = "Closing…";
-            StatusText.Text = "Update installed. ClipShot is closing.";
+            BusyLabel.Text = "Restarting…";
+            StatusText.Text = "Update installed. ClipShot is restarting.";
             await Task.Delay(400);
-            // Shutdown can be cancelled while the update window is open, which leaves ClipShot on screen.
+            // Exit so the update script can replace this exe and start the new one.
             Environment.Exit(0);
         }
         catch (OperationCanceledException)

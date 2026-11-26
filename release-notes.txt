@@ -1,4 +1,5 @@
-- Clicking the tray icon opens ClipShot.
+- ClipShot opens again after an update.
+
 
 
 

@@ -88,7 +88,7 @@ More on distribution and checksums: [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md)
 
 ### Updates
 
-The main window has **Check for updates**. When a newer GitHub release exists, a banner and the tray menu offer **View update**. That window lists what changed, without who published it. **Update now** downloads `ClipShot.exe` from this repository, replaces the app, and closes it. ClipShot does not open again on its own. Shortcuts and the region-dim setting are kept.
+The main window has **Check for updates**. When a newer GitHub release exists, a banner and the tray menu offer **View update**. That window lists what changed, without who published it. **Update now** downloads `ClipShot.exe` from this repository, replaces the app, and opens the new version. Shortcuts and the region-dim setting are kept.
 
 ## Use it
 

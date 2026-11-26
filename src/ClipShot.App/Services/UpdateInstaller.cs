@@ -59,6 +59,7 @@ internal static class UpdateInstaller
             "while (Get-Process -Id $processId -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 400 }\n" +
             "Move-Item -LiteralPath " + Quote(staged) + " -Destination " + Quote(executable) + " -Force\n" +
             "try { Unblock-File -LiteralPath " + Quote(executable) + " -ErrorAction SilentlyContinue } catch {}\n" +
+            "Start-Process -FilePath " + Quote(executable) + "\n" +
             "Remove-Item -LiteralPath $PSCommandPath -Force\n";
         await File.WriteAllTextAsync(scriptPath, script, new System.Text.UTF8Encoding(false), cancellationToken);
         var updaterProcess = Process.Start(new ProcessStartInfo
