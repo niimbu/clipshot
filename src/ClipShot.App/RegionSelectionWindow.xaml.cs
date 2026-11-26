@@ -24,6 +24,8 @@ public partial class RegionSelectionWindow : Window
     private Rect? _hole;
     private DrawingRectangle? _selection;
 
+    internal Screen TargetScreen => _screen;
+
     internal RegionSelectionWindow(RegionCaptureSession session, Screen screen, BitmapSource screenshot, double dimOpacity = 0.45)
     {
         InitializeComponent();
@@ -103,8 +105,9 @@ public partial class RegionSelectionWindow : Window
         var height = Math.Max(RootGrid.ActualHeight, SelectionCanvas.ActualHeight);
         if (width < 1 || height < 1)
         {
-            width = Math.Max(width, Width > 1 ? Width : _screen.Bounds.Width);
-            height = Math.Max(height, Height > 1 ? Height : _screen.Bounds.Height);
+            DisplayLayout.GetMonitorDpi(_screen.Bounds, out var dpiX, out var dpiY);
+            width = Math.Max(width, Width > 1 ? Width : DisplayLayout.ToDip(_screen.Bounds.Width, dpiX));
+            height = Math.Max(height, Height > 1 ? Height : DisplayLayout.ToDip(_screen.Bounds.Height, dpiY));
         }
 
         _hole = hole;

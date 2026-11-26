@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using ClipShot.Services;
 using DrawingPoint = System.Drawing.Point;
 using DrawingRectangle = System.Drawing.Rectangle;
@@ -27,7 +29,7 @@ internal sealed class RegionCaptureSession
     private readonly DesktopCapture _desktop;
     private readonly double _dimOpacity;
     private readonly List<RegionSelectionWindow> _windows = new();
-    private RegionSelectionWindow? _dialog;
+    private DispatcherFrame? _frame;
     private DrawingPoint _anchor;
     private bool _dragging;
     private bool _done;
@@ -46,36 +48,40 @@ internal sealed class RegionCaptureSession
         if (screens.Length == 0)
             return false;
 
-        var dialogScreen = Screen.PrimaryScreen ?? screens[0];
         foreach (var screen in screens.OrderBy(screen => screen.Primary ? 0 : 1))
         {
-            var image = Crop(_desktop.Image, _desktop.Bounds, screen.Bounds);
-            var window = new RegionSelectionWindow(this, screen, image, _dimOpacity);
-            _windows.Add(window);
-            if (screen.DeviceName == dialogScreen.DeviceName)
-                _dialog = window;
+            var image = WithMonitorDpi(Crop(_desktop.Image, _desktop.Bounds, screen.Bounds), screen.Bounds);
+            _windows.Add(new RegionSelectionWindow(this, screen, image, _dimOpacity));
         }
 
-        _dialog ??= _windows[0];
         try
         {
+            // Do not use ShowDialog on the primary only — that leaves the other
+            // displays unable to take a proper drag on mixed multi-monitor setups.
+            _frame = new DispatcherFrame();
             foreach (var window in _windows)
-            {
-                if (!ReferenceEquals(window, _dialog))
-                    window.Show();
-            }
+                window.Show();
 
-            var accepted = _dialog.ShowDialog() == true && _pick is not null;
+            var active = Screen.FromPoint(System.Windows.Forms.Cursor.Position);
+            var focus = _windows.FirstOrDefault(window => window.TargetScreen.DeviceName == active.DeviceName)
+                        ?? _windows.FirstOrDefault(window => window.TargetScreen.Primary)
+                        ?? _windows[0];
+            focus.Activate();
+            focus.Focus();
+
+            Dispatcher.CurrentDispatcher.PushFrame(_frame);
             pick = _pick;
-            return accepted;
+            return _pick is not null;
         }
         finally
         {
             foreach (var window in _windows)
             {
-                if (!ReferenceEquals(window, _dialog) && window.IsLoaded)
+                if (window.IsLoaded)
                     window.Close();
             }
+
+            _frame = null;
         }
     }
 
@@ -117,7 +123,7 @@ internal sealed class RegionCaptureSession
         _done = true;
         _dragging = false;
         _pick = null;
-        CloseDialog(false);
+        StopFrame();
     }
 
     private void Finish(DrawingRectangle rect)
@@ -136,14 +142,14 @@ internal sealed class RegionCaptureSession
         }
 
         var host = hits[0].Screen;
-        var crop = Crop(_desktop.Image, _desktop.Bounds, rect);
+        var crop = WithMonitorDpi(Crop(_desktop.Image, _desktop.Bounds, rect), host.Bounds);
         var contained = hits.Length == 1 && host.Bounds.Contains(rect);
         if (contained && host.Bounds.Width > 0 && host.Bounds.Height > 0)
         {
             _pick = new RegionPick
             {
                 Image = crop,
-                Background = Crop(_desktop.Image, _desktop.Bounds, host.Bounds),
+                Background = WithMonitorDpi(Crop(_desktop.Image, _desktop.Bounds, host.Bounds), host.Bounds),
                 Fractions = new NormalizedRect(
                     (rect.Left - host.Bounds.Left) / (double)host.Bounds.Width,
                     (rect.Top - host.Bounds.Top) / (double)host.Bounds.Height,
@@ -163,18 +169,13 @@ internal sealed class RegionCaptureSession
             };
         }
 
-        CloseDialog(true);
+        StopFrame();
     }
 
-    private void CloseDialog(bool accepted)
+    private void StopFrame()
     {
-        if (_dialog is not { } dialog)
-            return;
-        _ = dialog.Dispatcher.InvokeAsync(() =>
-        {
-            if (dialog.IsLoaded)
-                dialog.DialogResult = accepted;
-        });
+        if (_frame is { } frame)
+            frame.Continue = false;
     }
 
     private void Publish(DrawingRectangle? selection)
@@ -220,5 +221,34 @@ internal sealed class RegionCaptureSession
         var cropped = new CroppedBitmap(image, new Int32Rect(left, top, width, height));
         cropped.Freeze();
         return cropped;
+    }
+
+    /// <summary>
+    /// Screen captures are physical pixels. Stamp the monitor DPI so WPF sizes the
+    /// image in DIPs for that display instead of treating every pixel as 96 DPI.
+    /// </summary>
+    internal static BitmapSource WithMonitorDpi(BitmapSource source, DrawingRectangle monitorPixels)
+    {
+        DisplayLayout.GetMonitorDpi(monitorPixels, out var dpiX, out var dpiY);
+        if (Math.Abs(source.DpiX - dpiX) < 0.5 && Math.Abs(source.DpiY - dpiY) < 0.5)
+            return source;
+
+        BitmapSource bgra = source.Format == PixelFormats.Bgra32
+            ? source
+            : new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+        var stride = bgra.PixelWidth * 4;
+        var pixels = new byte[stride * bgra.PixelHeight];
+        bgra.CopyPixels(pixels, stride, 0);
+        var stamped = BitmapSource.Create(
+            bgra.PixelWidth,
+            bgra.PixelHeight,
+            dpiX,
+            dpiY,
+            PixelFormats.Bgra32,
+            null,
+            pixels,
+            stride);
+        stamped.Freeze();
+        return stamped;
     }
 }

@@ -2147,13 +2147,31 @@ public partial class ScreenshotEditorWindow : Window
     private static Rect MakeRect(Point a, Point b) =>
         new(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y));
 
-    private double HostWidth() => ActualWidth > 1
-        ? ActualWidth
-        : _coverPixels?.Width ?? SystemParameters.VirtualScreenWidth;
+    private double HostWidth()
+    {
+        if (ActualWidth > 1)
+            return ActualWidth;
+        if (_coverPixels is { Width: > 0 } cover)
+        {
+            DisplayLayout.GetMonitorDpi(cover, out var dpiX, out _);
+            return DisplayLayout.ToDip(cover.Width, dpiX);
+        }
 
-    private double HostHeight() => ActualHeight > 1
-        ? ActualHeight
-        : _coverPixels?.Height ?? SystemParameters.VirtualScreenHeight;
+        return SystemParameters.VirtualScreenWidth;
+    }
+
+    private double HostHeight()
+    {
+        if (ActualHeight > 1)
+            return ActualHeight;
+        if (_coverPixels is { Height: > 0 } cover)
+        {
+            DisplayLayout.GetMonitorDpi(cover, out _, out var dpiY);
+            return DisplayLayout.ToDip(cover.Height, dpiY);
+        }
+
+        return SystemParameters.VirtualScreenHeight;
+    }
 
     private AnnotationSnapshot CaptureAnnotationSnapshot() => new()
     {

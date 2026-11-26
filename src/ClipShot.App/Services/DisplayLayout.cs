@@ -15,14 +15,55 @@ internal static class DisplayLayout
     private const int WmWindowPosChanging = 0x0046;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
+    private const uint MonitorDefaultToNearest = 2;
+    private const int MonitorDpiTypeEffective = 0;
     private static readonly IntPtr HwndTopMost = new(-1);
 
     public static void Attach(Window window, DrawingRectangle pixels)
     {
         window.WindowState = WindowState.Normal;
-        window.SourceInitialized += (_, _) => Lock(window, pixels);
-        window.DpiChanged += (_, e) => SyncDipSize(window, pixels, e.NewDpi.PixelsPerInchX, e.NewDpi.PixelsPerInchY);
+        // Size against the target monitor DPI, not the window's current screen.
+        // Mixed-DPI setups otherwise leave the secondary display too small or too large.
+        GetMonitorDpi(pixels, out var dpiX, out var dpiY);
+        SyncDipSize(window, pixels, dpiX, dpiY);
+
+        void Apply() => Lock(window, pixels);
+
+        var helper = new WindowInteropHelper(window);
+        if (helper.Handle != IntPtr.Zero)
+            Apply();
+        else
+            window.SourceInitialized += (_, _) => Apply();
+
+        window.DpiChanged += (_, e) =>
+            SyncDipSize(window, pixels, e.NewDpi.PixelsPerInchX, e.NewDpi.PixelsPerInchY);
     }
+
+    public static void GetMonitorDpi(DrawingRectangle pixels, out double dpiX, out double dpiY)
+    {
+        var rect = new NativeRect
+        {
+            Left = pixels.Left,
+            Top = pixels.Top,
+            Right = pixels.Right,
+            Bottom = pixels.Bottom
+        };
+        var monitor = MonitorFromRect(ref rect, MonitorDefaultToNearest);
+        if (monitor != IntPtr.Zero &&
+            GetDpiForMonitor(monitor, MonitorDpiTypeEffective, out var x, out var y) == 0 &&
+            x > 0 && y > 0)
+        {
+            dpiX = x;
+            dpiY = y;
+            return;
+        }
+
+        dpiX = 96;
+        dpiY = 96;
+    }
+
+    public static double ToDip(int pixels, double dpi) =>
+        pixels * 96d / Math.Max(1, dpi);
 
     private static void Lock(Window window, DrawingRectangle pixels)
     {
@@ -50,9 +91,12 @@ internal static class DisplayLayout
             }
         }
 
-        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(window);
-        SyncDipSize(window, pixels, dpi.PixelsPerInchX, dpi.PixelsPerInchY);
+        GetMonitorDpi(pixels, out var dpiX, out var dpiY);
+        SyncDipSize(window, pixels, dpiX, dpiY);
         SetWindowPos(hwnd, HwndTopMost, pixels.X, pixels.Y, pixels.Width, pixels.Height, 0);
+        // SetWindowPos can change the effective DPI; sync again after the move.
+        GetMonitorDpi(pixels, out dpiX, out dpiY);
+        SyncDipSize(window, pixels, dpiX, dpiY);
     }
 
     private static void SyncDipSize(Window window, DrawingRectangle pixels, double dpiX, double dpiY)
@@ -80,6 +124,21 @@ internal static class DisplayLayout
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromRect(ref NativeRect rect, uint flags);
+
+    [DllImport("Shcore.dll")]
+    private static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct WindowPos
