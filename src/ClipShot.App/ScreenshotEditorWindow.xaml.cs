@@ -224,11 +224,11 @@ public partial class ScreenshotEditorWindow : Window
         if (!_inPlaceMode || ReferenceEquals(EditorToolbar.Parent, InPlaceCanvas))
             return;
 
-        if (EditorToolbar.Parent is Panel parent)
+        if (EditorToolbar.Parent is System.Windows.Controls.Panel parent)
             parent.Children.Remove(EditorToolbar);
 
         InPlaceCanvas.Children.Add(EditorToolbar);
-        Panel.SetZIndex(EditorToolbar, 1000);
+        System.Windows.Controls.Panel.SetZIndex(EditorToolbar, 1000);
         EditorToolbar.Margin = new Thickness(0);
         EditorToolbar.HorizontalAlignment = HorizontalAlignment.Left;
         EditorToolbar.VerticalAlignment = VerticalAlignment.Top;
