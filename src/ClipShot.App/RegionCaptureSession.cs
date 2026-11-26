@@ -69,7 +69,7 @@ internal sealed class RegionCaptureSession
             focus.Activate();
             focus.Focus();
 
-            Dispatcher.CurrentDispatcher.PushFrame(_frame);
+            Dispatcher.PushFrame(_frame);
             pick = _pick;
             return _pick is not null;
         }
