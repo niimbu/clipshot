@@ -160,7 +160,7 @@
                     <Border.Effect>
                         <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.35" Color="Black"/>
                     </Border.Effect>
-                    <Grid x:Name="InPlaceSurfaceSlot"/>
+                    <Grid x:Name="InPlaceSurfaceSlot" ClipToBounds="True"/>
                 </Border>
                 <Thumb x:Name="HandleNW" Style="{StaticResource ResizeHandle}" DragDelta="ResizeHandle_DragDelta" Tag="NW" Cursor="SizeNWSE"/>
                 <Thumb x:Name="HandleN" Style="{StaticResource ResizeHandle}" DragDelta="ResizeHandle_DragDelta" Tag="N" Cursor="SizeNS"/>

@@ -272,14 +272,7 @@ public partial class ScreenshotEditorWindow : Window
 
         // Match the centered host's padding so a multi-monitor capture fills the window
         // instead of scrolling off the display it was captured from.
-        var width = Math.Max(1, ActualWidth - 48);
-        var height = Math.Max(1, ActualHeight - 48);
-        PreviewSurface.Width = width;
-        PreviewSurface.Height = height;
-        PreviewImage.Width = width;
-        PreviewImage.Height = height;
-        AnnotationCanvas.Width = width;
-        AnnotationCanvas.Height = height;
+        ApplyAnnotationSurfaceSize(Math.Max(1, ActualWidth - 48), Math.Max(1, ActualHeight - 48));
         _fittedToHost = true;
         PositionEditorToolbar();
     }
@@ -2409,11 +2402,21 @@ public partial class ScreenshotEditorWindow : Window
 
         var hostWidth = HostWidth();
         var hostHeight = HostHeight();
+        if (hostWidth <= 1 || hostHeight <= 1)
+            return;
+
         EnsureRegionPixels();
         if (_regionPixels is { } pixels && TryPhysicalToLocal(pixels, out var local))
             _regionBounds = local;
-        else
+        else if (_regionBounds.Width > 1 && _regionBounds.Height > 1)
             _regionBounds = ClampRegionBounds(_regionBounds, hostWidth, hostHeight);
+        else
+            // The host size is not ready yet. Do not shrink the ink surface to the
+            // 24×24 clamp minimum — that left drawing stuck in the top-left corner.
+            return;
+
+        if (_regionBounds.Width <= 1 || _regionBounds.Height <= 1)
+            return;
 
         Canvas.SetLeft(RegionChromeShade, _regionBounds.Left - 1);
         Canvas.SetTop(RegionChromeShade, _regionBounds.Top - 1);
@@ -2424,12 +2427,7 @@ public partial class ScreenshotEditorWindow : Window
         RegionChrome.Width = _regionBounds.Width;
         RegionChrome.Height = _regionBounds.Height;
 
-        PreviewSurface.Width = _regionBounds.Width;
-        PreviewSurface.Height = _regionBounds.Height;
-        PreviewImage.Width = _regionBounds.Width;
-        PreviewImage.Height = _regionBounds.Height;
-        AnnotationCanvas.Width = _regionBounds.Width;
-        AnnotationCanvas.Height = _regionBounds.Height;
+        ApplyAnnotationSurfaceSize(_regionBounds.Width, _regionBounds.Height);
 
         if (refreshCrop)
             RefreshRegionCrop();
@@ -2440,6 +2438,37 @@ public partial class ScreenshotEditorWindow : Window
         PositionResizeHandles();
         PositionInPlaceSizeBadge();
         PositionEditorToolbar();
+    }
+
+    /// <summary>
+    /// InkCanvas can keep a stale input area after an early tiny measure. Set the
+    /// size on the surface and force a layout pass so drawing covers the region.
+    /// </summary>
+    private void ApplyAnnotationSurfaceSize(double width, double height)
+    {
+        width = Math.Max(1, width);
+        height = Math.Max(1, height);
+
+        PreviewSurface.Width = width;
+        PreviewSurface.Height = height;
+        PreviewImage.Width = width;
+        PreviewImage.Height = height;
+        AnnotationCanvas.Width = width;
+        AnnotationCanvas.Height = height;
+        AnnotationCanvas.MinWidth = width;
+        AnnotationCanvas.MinHeight = height;
+
+        PreviewSurface.InvalidateMeasure();
+        PreviewSurface.InvalidateArrange();
+        AnnotationCanvas.InvalidateMeasure();
+        AnnotationCanvas.InvalidateArrange();
+        PreviewSurface.UpdateLayout();
+        AnnotationCanvas.UpdateLayout();
+
+        // Re-apply editing mode so the ink presenter picks up the new size.
+        var mode = AnnotationCanvas.EditingMode;
+        AnnotationCanvas.EditingMode = InkCanvasEditingMode.None;
+        AnnotationCanvas.EditingMode = mode;
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
-- The editor toolbar sits under the selected region, and the leftover corner box no longer blocks drawing.
+- Drawing tools work across the whole selected region, not only in the top-left corner.
+
 
 
 
